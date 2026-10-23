@@ -1,0 +1,51 @@
+name: deploy
+
+# NFR-09: tests → deploy to the EC2 server over SSH. Run by hand from the
+# Actions tab once the server exists (docs/DEPLOYMENT_AWS.md §8): pick the
+# branch under "Use workflow from". The commit that passed the tests is the
+# one deployed. Needs these repository secrets: EC2_HOST, EC2_USER,
+# EC2_SSH_KEY (and optionally DEPLOY_PATH, default /var/www/admission).
+# No other secret is in Git or GitHub: the server keeps its own .env, and
+# the migration user's credentials in ~/.oas-migrate.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  deploy:
+    needs: tests
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd "${{ secrets.DEPLOY_PATH || '/var/www/admission' }}"
+            php artisan down --retry=30 || true
+            git fetch origin "${{ github.ref_name }}"
+            git checkout -B "${{ github.ref_name }}" "${{ github.sha }}"
+            composer install --no-dev --optimize-autoloader --no-interaction
+            # Drop the cached config so the migration user below takes effect.
+            php artisan optimize:clear
+            # Schema changes run as the migration user (php artisan app:db-privileges);
+            # the runtime user in .env can't alter tables.
+            if [ -f ~/.oas-migrate ]; then
+              (set -a; . ~/.oas-migrate; set +a; php artisan migrate --force)
+            else
+              php artisan migrate --force
+            fi
+            php artisan optimize
+            php artisan queue:restart
+            php artisan up
+            echo "Deployed ${{ github.sha }}"
