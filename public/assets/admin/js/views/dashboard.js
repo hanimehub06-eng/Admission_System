@@ -8,6 +8,8 @@
 
   var ADM = window.ADM;
   var esc = AO.esc, icon = AO.icon;
+  // Each staff member's own card order (jQuery UI Sortable), kept in this browser
+  function orderKey() { return "admitone.dashOrder." + ADM.STAFF.email; }
 
   function render($el) {
     var apps = ADM.state.applicants;
@@ -20,16 +22,20 @@
     var h = new Date().getHours();
     var left = AO.daysUntil(ADM.state.settings.deadline);
 
-    // { n, label, detail, href, icon, tone, attrs }; only tasks with something to do are shown
+    // { key, n, label, detail, href, icon, tone, attrs }; only tasks with something to do are shown
     var tasks = [
-      { n: toReview.length, label: "Documents to review", detail: overdue ? overdue + " past the " + ADM.REVIEW_SLA_DAYS + "-day target" : "Oldest first", href: "#/documents", icon: "folder", tone: overdue ? "warn" : "green" },
-      { n: ready.length, label: "Ready to schedule", detail: "All documents verified", href: "#/applicants", icon: "calendar", tone: "blue", attrs: ' data-status-link="ready"' },
-      { n: toRecord.length, label: "Results to record", detail: "Took the exam", href: "#/results", icon: "pencil", tone: "gold" },
-      { n: toRelease.length, label: "Results to release", detail: "Recorded, not yet released", href: "#/results", icon: "send", tone: "gold" }
+      { key: "review", n: toReview.length, label: "Documents to review", detail: overdue ? overdue + " past the " + ADM.REVIEW_SLA_DAYS + "-day target" : "Oldest first", href: "#/documents", icon: "folder", tone: overdue ? "warn" : "green" },
+      { key: "ready", n: ready.length, label: "Ready to schedule", detail: "All documents verified", href: "#/applicants", icon: "calendar", tone: "blue", attrs: ' data-status-link="ready"' },
+      { key: "record", n: toRecord.length, label: "Results to record", detail: "Took the exam", href: "#/results", icon: "pencil", tone: "gold" },
+      { key: "release", n: toRelease.length, label: "Results to release", detail: "Recorded, not yet released", href: "#/results", icon: "send", tone: "gold" }
     ].filter(function (t) { return t.n > 0; });
     today.forEach(function (s) {
-      tasks.unshift({ n: ADM.sessionRoster(s.id).length, label: "Exam today · " + ADM.BATCHES[s.batch].label, detail: s.venue, href: "#/exams/" + s.id, icon: "ticket", tone: "blue" });
+      tasks.unshift({ key: "exam-" + s.id, n: ADM.sessionRoster(s.id).length, label: "Exam today · " + ADM.BATCHES[s.batch].label, detail: s.venue, href: "#/exams/" + s.id, icon: "ticket", tone: "blue" });
     });
+    // The saved order first; cards it doesn't know yet (today's exams) stay on top
+    var saved = AO.readJSON("local", orderKey()) || [];
+    tasks = tasks.map(function (t, i) { return { t: t, i: i, r: saved.indexOf(t.key) }; })
+      .sort(function (x, y) { return x.r - y.r || x.i - y.i; }).map(function (x) { return x.t; });
 
     // Where applicants are in the admission process
     var stages = [
@@ -49,9 +55,10 @@
       '<div class="dash-deadline">' + icon("clock") + "<span>Application deadline<strong>" + AO.fmt(ADM.state.settings.deadline, { month: "long", day: "numeric" }) + "</strong>" +
       "<em>" + (left > 0 ? left + " days left" : left === 0 ? "Closes today" : "Closed") + "</em></span></div></section>" +
 
-      '<div class="dash-section-head" data-reveal><h2>Needs you today</h2></div>' +
-      (tasks.length ? '<div class="task-grid" data-reveal>' + tasks.map(function (t) {
-        return '<a class="task-card tone-' + t.tone + '" href="' + t.href + '"' + (t.attrs || "") + ">" +
+      '<div class="dash-section-head" data-reveal><h2>Needs you today</h2>' +
+      (tasks.length > 1 ? '<span class="dash-hint">' + icon("grip") + "Drag the cards to reorder" + (saved.length ? ' · <button class="text-link" type="button" id="dash-order-reset">Reset</button>' : "") + "</span>" : "") + "</div>" +
+      (tasks.length ? '<div class="task-grid" id="task-grid" data-reveal>' + tasks.map(function (t) {
+        return '<a class="task-card tone-' + t.tone + '" href="' + t.href + '" data-key="' + esc(t.key) + '"' + (t.attrs || "") + ">" +
           '<span class="task-icon">' + icon(t.icon) + "</span>" +
           '<span class="task-text"><strong>' + esc(t.label) + "</strong><small>" + esc(t.detail) + "</small></span>" +
           '<span class="task-count">' + t.n + "</span>" + icon("arrowR") + "</a>";
@@ -66,7 +73,20 @@
           (i < stages.length - 1 ? '<span class="pipe-arrow" aria-hidden="true">' + icon("arrowR") + "</span>" : "") + "</li>";
       }).join("") + "</ol></section>"
     );
+    // A short move (under 8px) still counts as a click on the card. The dragged copy lives on <body>:
+    // the grid keeps a transform from its reveal animation, which would offset it from the pointer
+    $el.find("#task-grid").sortable({
+      items: ".task-card", distance: 8, helper: "clone", appendTo: "body", tolerance: "pointer", cursor: "grabbing", placeholder: "task-card task-placeholder", forcePlaceholderSize: true,
+      stop: function () {
+        AO.writeJSON("local", orderKey(), $(this).find(".task-card").map(function () { return $(this).data("key"); }).get());
+        $el.find(".dash-hint").html(icon("grip") + 'Drag the cards to reorder · <button class="text-link" type="button" id="dash-order-reset">Reset</button>');
+      }
+    });
+    // The cards sit in a CSS grid: compare left/right as well as up/down (Sortable only does that for floated items)
+    var $grid = $el.find("#task-grid");
+    if ($grid.length) $grid.sortable("instance")._isFloating = function () { return true; };
   }
+  $(document).on("click", "#dash-order-reset", function () { AO.removeKey("local", orderKey()); ADM.refresh(); });
 
   $(document).on("click", "[data-status-link]", function () { ADM.views.applicants.filterStatus($(this).data("status-link")); });
 

@@ -38,8 +38,8 @@ class ApplicantPortalPresenter
             ? ApplicationStatus::ForExam : $application->status;
 
         return [
-            // The application ID is shown only once admissions approved the documents (approved for the exam)
-            'applicationId' => in_array($application->status, [ApplicationStatus::Draft, ApplicationStatus::Submitted, ApplicationStatus::Resubmit], true) ? null : $application->number,
+            // The Applicant ID is issued only when admissions approves the application (null until then)
+            'applicationId' => $application->applicant_no,
             'status' => $status->value,
             'statusLabel' => $status->label(),
             'timeline' => $this->timeline($application, $released),

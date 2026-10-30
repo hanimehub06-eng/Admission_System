@@ -191,8 +191,8 @@
       <p class="sidebar-label">Applicant space</p>
       <nav class="sidebar-nav" aria-label="Applicant navigation">
         <span class="nav-indicator" aria-hidden="true"></span>
-        <a class="nav-link active" href="#" data-view="overview"><span data-icon="home"></span>Overview</a>
-        <a class="nav-link" href="#" data-view="application"><span data-icon="file"></span>My application<span
+        <a class="nav-link" href="#" data-view="overview"><span data-icon="home"></span>Overview</a>
+        <a class="nav-link active" href="#" data-view="application"><span data-icon="file"></span>My application<span
             class="nav-count" id="nav-app-count">0/3</span></a>
         <a class="nav-link" href="#" data-view="documents"><span data-icon="folder"></span>Documents<span
             class="nav-count" id="nav-doc-count">0</span></a>
@@ -219,7 +219,7 @@
         <button class="icon-button menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false"><span
             data-icon="menu"></span></button>
         <div class="breadcrumb-text"><span>Applicant space</span><span class="crumb-sep">/</span><strong
-            id="page-breadcrumb">Overview</strong></div>
+            id="page-breadcrumb">My application</strong></div>
         <div class="topbar-actions">
           <span class="id-chip"><span>ID</span>AD-2026-08421</span>
           <button class="profile-button" type="button" data-view="profile" aria-label="Open my profile"><span
@@ -230,7 +230,7 @@
 
       <div class="content-wrap">
         <!-- ===================== OVERVIEW ===================== -->
-        <section class="view-section active" id="view-overview">
+        <section class="view-section" id="view-overview">
           <div class="welcome-row" data-reveal>
             <div>
               <p class="eyebrow">AY 2027–2028 admission</p>
@@ -338,7 +338,7 @@
         </section>
 
         <!-- ===================== APPLICATION ===================== -->
-        <section class="view-section" id="view-application">
+        <section class="view-section active" id="view-application">
           <div class="page-title" data-reveal>
             <p class="eyebrow">Your details</p>
             <h1>My application</h1>
@@ -508,32 +508,49 @@
 
               <!-- Section 3 -->
               <section class="stage" data-stage="3">
-                <div class="row g-3">
-                  <div class="col-12"><label class="form-label" for="program1">First-choice program <span
-                        class="req">*</span></label><select class="form-select program-select" id="program1"
-                      name="program1" required>
-                      <option value="">Select a program</option>
-                    </select>
-                    <div class="invalid-feedback" id="program1-error"></div>
-                    <!-- FR-06: programs suggested for the applicant's SHS strand -->
-                    <div class="form-text" id="strand-suggestions" hidden></div>
+                <div class="row g-4">
+                  <div class="col-lg-7">
+                    <div class="row g-3">
+                      <!-- Drop targets for the program list (jQuery UI Droppable); the dropdowns work as before -->
+                      <div class="col-12 choice-drop" data-choice="1"><label class="form-label" for="program1">First-choice program <span
+                            class="req">*</span></label><select class="form-select program-select" id="program1"
+                          name="program1" required>
+                          <option value="">Select a program</option>
+                        </select>
+                        <div class="invalid-feedback" id="program1-error"></div>
+                        <!-- FR-06: programs suggested for the applicant's SHS strand -->
+                        <div class="form-text" id="strand-suggestions" hidden></div>
+                      </div>
+                      <div class="col-12 choice-drop" data-choice="2"><label class="form-label" for="program2">Second-choice program <span
+                            class="req">*</span></label><select class="form-select program-select" id="program2"
+                          name="program2" required>
+                          <option value="">Select a program</option>
+                        </select>
+                        <div class="invalid-feedback" id="program2-error"></div>
+                      </div>
+                      <div class="col-12 choice-drop" data-choice="3"><label class="form-label" for="program3">Third-choice program <span
+                            class="req">*</span></label><select class="form-select program-select" id="program3"
+                          name="program3" required>
+                          <option value="">Select a program</option>
+                        </select>
+                        <div class="invalid-feedback" id="program3-error"></div>
+                      </div>
+                      <div class="col-sm-8"><label class="form-label" for="intake">Intake</label><input class="form-control"
+                          id="intake" value="AY 2027–2028 · 1st semester" readonly></div>
+                    </div>
                   </div>
-                  <div class="col-12"><label class="form-label" for="program2">Second-choice program <span
-                        class="req">*</span></label><select class="form-select program-select" id="program2"
-                      name="program2" required>
-                      <option value="">Select a program</option>
-                    </select>
-                    <div class="invalid-feedback" id="program2-error"></div>
+                  <!-- Program list: drag a program onto a choice (jQuery UI Draggable), or click it to fill the next empty one -->
+                  <div class="col-lg-5 pp-col">
+                    <aside class="program-picker" aria-labelledby="program-picker-title">
+                      <div class="pp-head">
+                        <h3 id="program-picker-title">Programs</h3>
+                        <p>Drag a program onto a choice, or click it to fill the next empty one.</p>
+                      </div>
+                      <div class="pp-search"><span data-icon="search"></span><input class="form-control" id="program-filter"
+                          type="search" placeholder="Search programs" aria-label="Search programs"></div>
+                      <div class="pp-list" id="program-list" role="list"></div>
+                    </aside>
                   </div>
-                  <div class="col-12"><label class="form-label" for="program3">Third-choice program <span
-                        class="req">*</span></label><select class="form-select program-select" id="program3"
-                      name="program3" required>
-                      <option value="">Select a program</option>
-                    </select>
-                    <div class="invalid-feedback" id="program3-error"></div>
-                  </div>
-                  <div class="col-md-6"><label class="form-label" for="intake">Intake</label><input class="form-control"
-                      id="intake" value="AY 2027–2028 · 1st semester" readonly></div>
                 </div>
               </section>
 

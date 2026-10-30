@@ -2024,3 +2024,6 @@ h1 {
 .is-invalid + .combo-input {
   border-color: var(--danger);
 }
+
+/* Applicant Overview before admissions approves the application (clicking it explains why) */
+.sidebar-nav .nav-link.nav-locked { opacity: .5; }

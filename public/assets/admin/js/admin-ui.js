@@ -119,9 +119,12 @@
   function modal(id) { return bootstrap.Modal.getOrCreateInstance(document.getElementById(id)); }
   /* Show a modal, waiting for any other one to finish closing first */
   function open(id) {
-    var $other = $(".modal:visible").not("#" + id);
-    if ($other.length) $other.one("hidden.bs.modal", function () { modal(id).show(); });
-    else modal(id).show();
+    var $other = $(".modal.show").not("#" + id);
+    if ($other.length) {
+      $other.first().one("hidden.bs.modal", function () { modal(id).show(); });
+      // The floating document window isn't closing by itself: close it
+      $other.each(function () { modal(this.id).hide(); });
+    } else modal(id).show();
   }
 
   /* ---------- Confirm ---------- */
@@ -235,9 +238,9 @@
       return r.blob();
     }).then(function (blob) {
       previewUrl = URL.createObjectURL(blob);
-      $slot.replaceWith(blob.type.indexOf("image/") === 0
-        ? '<img src="' + previewUrl + '" alt="" style="max-width:100%;max-height:60vh;display:block;margin:12px auto 0">'
-        : '<iframe src="' + previewUrl + '" title="Document" style="width:100%;height:60vh;border:0;margin-top:12px"></iframe>');
+      $slot.replaceWith($('<div class="doc-file">').css("height", docSize.fileH || "").html(blob.type.indexOf("image/") === 0
+        ? '<img src="' + previewUrl + '" alt="">'
+        : '<iframe src="' + previewUrl + '" title="Document"></iframe>'));
     }).catch(function (r) {
       $slot.text(r && r.status === 403 ? "You don't have access to this file." : "The file couldn't be loaded.");
     });
@@ -256,9 +259,71 @@
       (doc.remark ? "<div><dt>Remark</dt><dd>" + esc(doc.remark) + "</dd></div>" : "") +
       (doc.reviewedBy ? "<div><dt>Reviewed</dt><dd>" + esc(doc.reviewedBy) + " · " + esc(dt(doc.reviewedAt)) + "</dd></div>" : "") + "</dl>");
     $("#doc-preview-actions").html(actionsHTML || '<button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Close</button>').prop("hidden", false);
+    // Opens where and as big as the staff member last left it (already open: stays put)
+    if (!$("#docModal").hasClass("show")) {
+      $docBox.removeClass("is-sized").css({ top: "", left: "", width: "", height: "" });
+      if (wide()) $docBox.toggleClass("is-sized", !!docSize.w).css({ width: docSize.w || "", height: docSize.h || "", top: docSize.top || "", left: docSize.left || "" });
+    }
+    docFor = a.id;
     open("docModal");
     loadPreview(a, key);
   }
+
+  /* Document preview window: drag it by its header (jQuery UI Draggable) and
+     resize it from either side, the bottom or a corner (jQuery UI Resizable) to read
+     small print. Wide screens only; on phones the modal fills the screen. */
+  var $docBox = $("#docModal .modal-content"), docSize = {}, docFor = null;
+  // Leaving the applicant (back to the list, another screen): the window goes too.
+  // It stays while moving between that applicant's record and their document verification.
+  $(window).on("hashchange", function () {
+    var parts = location.hash.replace(/^#\/?/, "").split("/");
+    if ($("#docModal").hasClass("show") && decodeURIComponent(parts[1] || "") !== docFor) modal("docModal").hide();
+  });
+  /* Not a blocking dialog: the page behind stays usable (scroll, the Profile
+     tab), so keyboard focus goes to the window but isn't trapped in it */
+  $("#docModal")
+    .on("shown.bs.modal", function () {
+      $(this).removeAttr("aria-modal").find(".btn-close").trigger("focus");
+      $("body").toggleClass("doc-floating", wide());
+      // The screen may have shrunk since: bring the window back to its starting spot
+      var r = $docBox[0].getBoundingClientRect();
+      if (r.left < 0 || r.right > window.innerWidth || r.top < 0 || r.top > window.innerHeight - 56) {
+        $docBox.css({ top: "", left: "" });
+        if ($docBox[0].getBoundingClientRect().right > window.innerWidth) $docBox.removeClass("is-sized").css({ width: "", height: "" });
+      }
+    })
+    .on("hidden.bs.modal", function () { $("body").removeClass("doc-floating"); });
+  function wide() { return window.innerWidth >= 768; }
+  function remember(box) { docSize = { w: box.style.width, h: box.style.height, top: box.style.top, left: box.style.left, fileH: $(box).find(".doc-file").height() || docSize.fileH }; }
+  $docBox.draggable({
+    handle: ".modal-header", cancel: ".btn-close", cursor: "grabbing",
+    start: function (e, ui) {
+      if (!wide()) return false;
+      var r = this.getBoundingClientRect();
+      $(this).data("base", { left: r.left - ui.position.left, top: r.top - ui.position.top, w: r.width });
+    },
+    // Keep the header on screen so the window can always be dragged back
+    drag: function (e, ui) {
+      var b = $(this).data("base");
+      ui.position.top = Math.min(Math.max(ui.position.top, -b.top), window.innerHeight - 56 - b.top);
+      ui.position.left = Math.min(Math.max(ui.position.left, 120 - b.w - b.left), window.innerWidth - 120 - b.left);
+    },
+    stop: function () { remember(this); }
+  });
+  $docBox.resizable({
+    handles: "w, e, s, sw, se", minWidth: 420, minHeight: 320,
+    start: function () {
+      if (!wide()) return false;
+      var r = this.getBoundingClientRect();
+      $(this).addClass("is-sized").resizable("option", "maxWidth", window.innerWidth - 24)
+        .data("from", { h: r.height, fileH: $(this).find(".doc-file").height() || 0 });
+    },
+    resize: function (e, ui) {
+      var f = $(this).data("from");
+      if (f.fileH) $(this).find(".doc-file").height(Math.max(160, f.fileH + ui.size.height - f.h));
+    },
+    stop: function () { remember(this); }
+  });
 
   /* ==========================================================================
      PRINTING

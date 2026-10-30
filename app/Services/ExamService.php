@@ -77,6 +77,7 @@ class ExamService
 
         $registration = DB::transaction(function () use ($application, $session, $by) {
             $this->assertSeat($session);
+            $application->update(['applicant_no' => $application->applicant_no ?? $this->nextApplicantNo()]);
             $permit = $this->permitNumber($application);
             $registration = ExamRegistration::create([
                 'application_id' => $application->id,
@@ -432,6 +433,15 @@ class ExamService
     }
 
     /** EX-27-00001: "27" from the academic year (2027–2028) + the application's number. */
+    /** 1.1: the Applicant ID (2026-00001), numbered in approval order; the unique index guards a race. */
+    private function nextApplicantNo(): string
+    {
+        $year = now()->year;
+        $last = Application::withTrashed()->where('applicant_no', 'like', "{$year}-%")->lockForUpdate()->max('applicant_no');
+
+        return sprintf('%d-%05d', $year, $last ? (int) substr($last, 5) + 1 : 1);
+    }
+
     private function permitNumber(Application $application): string
     {
         $year = substr($application->period->academic_year, 2, 2);

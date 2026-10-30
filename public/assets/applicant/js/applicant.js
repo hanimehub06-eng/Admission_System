@@ -207,6 +207,11 @@ $(function () {
   function hasDoc(key) { var f = state.docs[key]; return !!f && f.status !== "resubmit"; }
   function docCount() { return DOCS.filter(function (d) { return hasDoc(d.key); }).length; }
   function locked() { return state.phase !== "draft"; }
+  // The Overview (dashboard) opens once admissions has verified every required document (or the application is further along)
+  function approved() {
+    if (["draft", "submitted", "resubmit"].indexOf(STATUS) === -1) return true;
+    return STATUS === "submitted" && DOCS.length > 0 && DOCS.every(function (d) { return state.docs[d.key] && state.docs[d.key].status === "verified"; });
+  }
 
   function medCount() { return MEDICAL.filter(function (m) { return state.medical.files[m.key]; }).length; }
 
@@ -243,7 +248,7 @@ $(function () {
     $("#auth-screen").prop("hidden", true);
     $("#app").prop("hidden", false);
     refreshAll();
-    openView("overview");
+    openView("application");   // everyone starts on My application; the Overview opens from the menu once approved
   }
 
   function leaveApp() {
@@ -415,6 +420,10 @@ $(function () {
   var PAGE_LABELS = { overview: "Overview", application: "My application", documents: "Documents", profile: "My profile" };
 
   function openView(name) {
+    if (name === "overview" && !approved()) {
+      showToast("Your dashboard opens once admissions approves your documents and application details.");
+      name = "application";
+    }
     var $target = $("#view-" + name);
     if (!$target.length) return;
     $(".view-section").removeClass("active");
@@ -583,8 +592,10 @@ $(function () {
     // Exam
     if (n === 3) {
       if (STATUS === "submitted") {
+        // approved() here means every document is verified; only the exam schedule is left
         return '<div class="sp-row"><span class="scan-doc" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><div class="sp-body">' +
-          "<h3>Admissions is checking your application</h3><p>Your exam schedule appears here once your documents are verified. We'll email you.</p></div></div>";
+          (approved() ? "<h3>Your documents are verified</h3><p>Admissions is scheduling your entrance exam. Your schedule and permit appear here once it's set. We'll email you.</p>"
+            : "<h3>Admissions is checking your application</h3><p>Your exam schedule appears here once your documents are verified. We'll email you.</p>") + "</div></div>";
       }
       var ed = parseDate(EXAM.date);
       // Clicking the ticket downloads the exam permit (PDF, see EXAM PERMIT below)
@@ -785,11 +796,65 @@ $(function () {
   }
   $("#birth-date").on("change input", syncMinor);
   // FR-06: suggestions follow the strand chosen in section 2
+  function suggestedPrograms() {
+    return (STRAND_SUGGEST[$("#strand").val() || state.data.strand] || []).filter(function (n) { return PROGRAMS.indexOf(n) !== -1; });
+  }
   function syncSuggestions() {
-    var list = (STRAND_SUGGEST[$("#strand").val() || state.data.strand] || []).filter(function (n) { return PROGRAMS.indexOf(n) !== -1; });
+    var list = suggestedPrograms();
     $("#strand-suggestions").prop("hidden", !list.length).text(list.length ? "Suggested for your strand: " + list.join(", ") + "." : "");
+    renderProgramList();
   }
   $("#strand").on("change", syncSuggestions);
+
+  /* Program list beside the choices: drag a program onto a choice (jQuery UI
+     Draggable + Droppable) or click it to fill the next empty choice. A
+     program already chosen elsewhere swaps places. The dropdowns still work. */
+  var ORDINAL = ["1st", "2nd", "3rd"];
+  function choiceValues() { return [1, 2, 3].map(function (n) { return $("#program" + n).val() || ""; }); }
+  function renderProgramList() {
+    var chosen = choiceValues(), sugg = suggestedPrograms(), q = ($("#program-filter").val() || "").trim().toLowerCase();
+    var list = PROGRAMS.filter(function (p) { return p.toLowerCase().indexOf(q) !== -1; })
+      .sort(function (a, b) { return (sugg.indexOf(b) !== -1) - (sugg.indexOf(a) !== -1); });   // suggested first
+    $("#program-list").html(list.length ? list.map(function (p) {
+      var n = chosen.indexOf(p) + 1;
+      return '<button class="program-chip' + (n ? " is-chosen" : "") + '" type="button" role="listitem" data-program="' + esc(p) + '"' +
+        ' aria-label="' + esc(p) + (n ? ", your " + ORDINAL[n - 1] + " choice" : ", add as the next choice") + '">' +
+        '<span class="pc-grip">' + icon("grip") + '</span><span class="pc-name">' + esc(p) +
+        (sugg.indexOf(p) !== -1 ? '<small class="pc-suggested">Suggested for your strand</small>' : "") + "</span>" +
+        (n ? '<span class="pc-badge">' + ORDINAL[n - 1] + "</span>" : "") + "</button>";
+    }).join("") : '<p class="pp-empty">No program matches “' + esc(q) + '”.</p>');
+    $("#program-list .program-chip").draggable({
+      helper: function () { return $('<div class="program-drag">' + icon("file") + esc($(this).data("program")) + "</div>"); },
+      appendTo: "body", cursorAt: { left: 18, top: 18 }, cancel: "", distance: 4, scroll: false, revert: "invalid", revertDuration: 150, zIndex: 2000,
+      start: function () { $(this).addClass("is-dragging"); },
+      stop: function () { $(this).removeClass("is-dragging"); }
+    });
+  }
+  function placeProgram(p, n) {
+    var values = choiceValues(), was = values.indexOf(p);
+    if (was === n - 1) return;
+    if (was !== -1) values[was] = values[n - 1];   // already another choice: swap
+    values[n - 1] = p;
+    values.forEach(function (v, i) { $("#program" + (i + 1)).val(v); clearError($("#program" + (i + 1))); });
+    $("#program1").trigger("change");   // the form's save handler (and the list's badges)
+    $('.choice-drop[data-choice="' + n + '"]').effect("highlight", { color: "#ebf6ee" }, 700);
+  }
+  $(".choice-drop").droppable({
+    accept: ".program-chip", tolerance: "pointer", classes: { "ui-droppable-active": "is-ready", "ui-droppable-hover": "is-over" },
+    drop: function (e, ui) { placeProgram(ui.draggable.data("program"), +$(this).data("choice")); }
+  });
+  $("#program-list").on("click", ".program-chip", function () {
+    var p = $(this).data("program"), values = choiceValues(), n = values.indexOf(p);
+    if (n !== -1) { showToast("Already your " + ORDINAL[n] + " choice. Drag it onto another choice to swap."); return; }
+    n = values.indexOf("");
+    if (n === -1) { showToast("All three choices are set. Drag a program onto a choice to replace it."); return; }
+    placeProgram(p, n + 1);
+  });
+  // Re-drawn after the drop finishes (removing a dragged chip mid-drop upsets jQuery UI)
+  $(document).on("change", ".program-select", function () { setTimeout(renderProgramList, 0); });
+  $("#program-filter").on("input", renderProgramList)
+    .on("keydown", function (e) { if (e.key === "Enter") e.preventDefault(); });   // not the form's "Save and continue"
+
   // District and barangay only for Pasig residents; barangay list follows the district
   function syncResidency() {
     var resident = $("#is-resident").val() === "1", district = $("#district").val();
@@ -887,9 +952,10 @@ $(function () {
       $("#complete-name").text(state.data.firstName || "applicant");
       $("#edit-answers").prop("hidden", locked());
       $("#complete-card .lede").text(locked()
-        ? "Your application has been sent to admissions. Follow its progress on the Overview."
+        ? (approved() ? "Your application has been approved. Follow its progress on the Overview." : "Your application has been sent to admissions. Your dashboard opens once they approve your documents and details.")
         : "Your personal, academic, and program details are saved. Next, upload your required documents so admissions can review your application.");
-      $("#complete-card [data-view]").html(locked() ? "Go to overview" + icon("arrowR") : "Upload documents" + icon("arrowR")).attr("data-view", locked() ? "overview" : "documents").data("view", locked() ? "overview" : "documents");
+      var next = locked() && approved() ? "overview" : "documents";
+      $("#complete-card [data-view]").html((next === "overview" ? "Go to overview" : locked() ? "View documents" : "Upload documents") + icon("arrowR")).attr("data-view", next).data("view", next);
       // replay the check animation
       var $svg = $("#complete-card .check-draw");
       $svg.replaceWith($svg.clone());
@@ -1391,6 +1457,7 @@ $(function () {
     renderJourney();
     renderApplication(false);
     renderDocs();
+    $(".sidebar-nav [data-view=\"overview\"]").toggleClass("nav-locked", !approved()).attr("aria-disabled", !approved());
     setTimeout(moveNavIndicator, 0);
   }
 

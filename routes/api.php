@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\Applicant\ApplicationController;
 use App\Http\Controllers\Api\Applicant\DocumentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DeanController;
+use App\Http\Controllers\Api\ExamQuestionController;
 use App\Http\Controllers\Api\InterviewController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\Clinic;
@@ -44,6 +46,7 @@ Route::prefix('notifications')->middleware(['auth:api', 'active'])->group(functi
 // Applicant portal: the signed-in applicant's own application only
 Route::prefix('applicant')->middleware(['auth:api', 'active', 'role:applicant'])->group(function () {
     Route::get('portal', [ApplicationController::class, 'show']);
+    Route::get('announcements', [AnnouncementController::class, 'published']);
     Route::put('application', [ApplicationController::class, 'update']);
     Route::put('profile', [ApplicationController::class, 'updateProfile']);
     Route::post('submit', [ApplicationController::class, 'submit']);
@@ -75,60 +78,94 @@ Route::prefix('admin')->middleware(['auth:api', 'active', 'two_factor'])->group(
     Route::get('state', [Office\StateController::class, 'show'])->middleware('role:admission|admission_head|proctor|read_only');
     // Top-bar live search (the screens that show the applicant list)
     Route::get('applicants/search', [Office\StateController::class, 'search'])->middleware(['role:admission|admission_head|super_admin|read_only', 'throttle:api']);
-    // "What's your task?" picker (Admission Personnel and the Admin; the controller refuses the Super Admin): each choice goes in the audit log
-    Route::post('task', [Office\StateController::class, 'chooseTask'])->middleware(['role:admission|admission_head', 'throttle:api']);
     Route::get('reference', [Office\SetupController::class, 'reference'])->middleware('role:admission|admission_head|proctor|read_only');
 
-    Route::middleware('role:admission|admission_head|proctor')->group(function () {
+    // Exam attendance (2.8): proctors only, never the Admission Head (2.1)
+    Route::middleware(['role:admission|proctor', 'task:proctor'])->group(function () {
         Route::patch('applicants/{application}/exam', [Office\ExamController::class, 'roster']);
         Route::post('exam/check-in', [Office\ExamController::class, 'checkIn']);
-        Route::get('exam-sessions/{session}/roster', [Office\ExamController::class, 'sessionRoster']);
     });
+    Route::get('exam-sessions/{session}/roster', [Office\ExamController::class, 'sessionRoster'])->middleware(['role:admission|admission_head|proctor', 'task:proctor,exam_office']);
+
+    // Proctor reports about an applicant (2.9); the office reads them
+    Route::get('applicants/{application}/reports', [Office\ApplicantReportController::class, 'index'])->middleware('role:admission|admission_head|proctor');
+    Route::post('applicants/{application}/reports', [Office\ApplicantReportController::class, 'store'])->middleware(['role:admission|admission_head|proctor', 'task:proctor']);
 
     // Admin only (use-case diagram "Admin Module"): release results (FR-20), set the admission dates
     Route::post('results/release', [Office\ExamController::class, 'release'])->middleware('role:admission_head');
     Route::patch('admission-period', [Office\SetupController::class, 'updatePeriod'])->middleware('role:admission_head');
     // The Admin can also record a dean's evaluation (any college)
     Route::post('applicants/{application}/evaluation', [InterviewController::class, 'record'])->middleware('role:admission_head');
+
+    // Announcements of admission dates and deadlines (2.2): the Admission Head writes and publishes
+    Route::middleware('role:admission_head|super_admin')->prefix('announcements')->group(function () {
+        Route::get('/', [AnnouncementController::class, 'index']);
+        Route::post('/', [AnnouncementController::class, 'store']);
+        Route::patch('{announcement}', [AnnouncementController::class, 'update']);
+        Route::delete('{announcement}', [AnnouncementController::class, 'destroy']);
+    });
 });
 
+// A personnel account with a task (Exam Proctor, Exam Office, Admission
+// Personnel) reaches only its task's routes; untasked personnel, the Head
+// and the Super Admin reach all of them (EnsureStaffTask).
 Route::prefix('admin')->middleware(['auth:api', 'active', 'two_factor', 'role:admission|admission_head|super_admin'])->group(function () {
 
-    Route::prefix('applicants/{application}')->group(function () {
-        Route::patch('documents/{key}', [Office\DocumentController::class, 'review']);
-        Route::post('documents/verify-pending', [Office\DocumentController::class, 'verifyPending']);
-        Route::get('documents/{key}/file', [Office\DocumentController::class, 'file']);
-        Route::patch('documents/{key}/photocopy', [Office\DocumentController::class, 'photocopy']);
+    // Admission Personnel (2.6, 2.7): documents, approve or send back, slip and permit
+    Route::middleware('task:personnel')->group(function () {
+        Route::prefix('applicants/{application}')->group(function () {
+            Route::patch('documents/{key}', [Office\DocumentController::class, 'review']);
+            Route::post('documents/verify-pending', [Office\DocumentController::class, 'verifyPending']);
+            Route::get('documents/{key}/file', [Office\DocumentController::class, 'file']);
+            Route::patch('documents/{key}/photocopy', [Office\DocumentController::class, 'photocopy']);
+            Route::get('exam-permit', [Office\ExamController::class, 'permit']);
+            Route::get('slip', [Office\ExamController::class, 'slip']);
+        });
+
+        Route::post('applicants/{application}/approve', [Office\ExamController::class, 'approve']);
+        Route::post('applicants/{application}/reschedule', [Office\ExamController::class, 'reschedule']);
+        Route::post('exam/auto-assign', [Office\ExamController::class, 'autoAssign']);
     });
 
-    Route::post('applicants/{application}/approve', [Office\ExamController::class, 'approve']);
-    Route::post('applicants/{application}/reschedule', [Office\ExamController::class, 'reschedule']);
-    Route::post('applicants/{application}/result', [Office\ExamController::class, 'recordResult']);
-    Route::post('applicants/{application}/placement', [Office\ExamController::class, 'place']);
-    Route::post('results/import', [Office\ExamController::class, 'importResults']);
-    Route::post('exam/auto-assign', [Office\ExamController::class, 'autoAssign']);
-    Route::post('exam-sessions', [Office\ExamController::class, 'storeSession']);
-    Route::patch('exam-sessions/{session}', [Office\SetupController::class, 'updateSession']);
-    Route::delete('exam-sessions/{session}', [Office\SetupController::class, 'deleteSession']);
+    // Exam Office (2.10, 2.11): scores and who passed
+    Route::middleware('task:exam_office')->group(function () {
+        Route::post('applicants/{application}/result', [Office\ExamController::class, 'recordResult']);
+        Route::post('applicants/{application}/placement', [Office\ExamController::class, 'place']);
+        Route::post('results/import', [Office\ExamController::class, 'importResults']);
+    });
 
-    Route::get('interviews', [InterviewController::class, 'index']);
-    Route::post('interview-schedules', [InterviewController::class, 'storeSchedule']);
-    Route::post('applicants/{application}/interview', [InterviewController::class, 'assign']);
+    // Setup: no task covers it
+    Route::middleware('task')->group(function () {
+        Route::post('exam-sessions', [Office\ExamController::class, 'storeSession']);
+        Route::patch('exam-sessions/{session}', [Office\SetupController::class, 'updateSession']);
+        Route::delete('exam-sessions/{session}', [Office\SetupController::class, 'deleteSession']);
 
-    Route::post('programs', [Office\SetupController::class, 'storeProgram']);
-    Route::patch('programs/{program:code}', [Office\SetupController::class, 'updateProgram']);
-    Route::patch('requirements/{key}', [Office\SetupController::class, 'updateRequirement']);
-    // Super admin only: staff accounts (admission personnel, clinic, college deans)
-    Route::middleware('role:super_admin')->prefix('accounts')->group(function () {
-        Route::get('/', [Office\AccountController::class, 'index']);
-        Route::post('/', [Office\AccountController::class, 'store']);
-        Route::patch('{user}/active', [Office\AccountController::class, 'setActive']);
+        Route::get('interviews', [InterviewController::class, 'index']);
+        Route::post('interview-schedules', [InterviewController::class, 'storeSchedule']);
+        Route::post('applicants/{application}/interview', [InterviewController::class, 'assign']);
+
+        Route::post('programs', [Office\SetupController::class, 'storeProgram']);
+        Route::patch('programs/{program:code}', [Office\SetupController::class, 'updateProgram']);
+        Route::patch('requirements/{key}', [Office\SetupController::class, 'updateRequirement']);
+        Route::put('strands', [Office\SetupController::class, 'saveStrand']);
+        Route::put('barangays/{district}', [Office\SetupController::class, 'saveBarangays'])->whereNumber('district');
+    });
+
+    // Staff accounts (admission personnel, clinic, college deans): the Super Admin creates and
+    // disables them; the Admission Head also assigns personnel their task (2.3)
+    Route::prefix('accounts')->group(function () {
+        Route::middleware('role:admission_head|super_admin')->group(function () {
+            Route::get('/', [Office\AccountController::class, 'index']);
+            Route::patch('{user}/task', [Office\AccountController::class, 'setTask']);
+        });
+        Route::middleware('role:super_admin')->group(function () {
+            Route::post('/', [Office\AccountController::class, 'store']);
+            Route::patch('{user}/active', [Office\AccountController::class, 'setActive']);
+        });
     });
 
     // Super admin oversight: open an applicant's medical files (read-only, every opening is audited)
     Route::get('applicants/{application}/medical/{key}/file', [Clinic\MedicalController::class, 'file'])->middleware('role:super_admin');
-    Route::put('strands', [Office\SetupController::class, 'saveStrand']);
-    Route::put('barangays/{district}', [Office\SetupController::class, 'saveBarangays'])->whereNumber('district');
 });
 
 // Clinic module (admin portal, clinic role): the nurse sees medical files only,
@@ -148,6 +185,11 @@ Route::prefix('clinic')->middleware(['auth:api', 'active', 'two_factor', 'role:c
 Route::prefix('dean')->middleware(['auth:api', 'active', 'two_factor', 'role:college_dean'])->group(function () {
     Route::get('applicants', [DeanController::class, 'applicants']);
     Route::put('interview-questions', [DeanController::class, 'saveQuestions']);
+    // Entrance exam questions of the dean's college (3.1)
+    Route::get('exam-questions', [ExamQuestionController::class, 'index']);
+    Route::post('exam-questions', [ExamQuestionController::class, 'store']);
+    Route::patch('exam-questions/{question}', [ExamQuestionController::class, 'update']);
+    Route::delete('exam-questions/{question}', [ExamQuestionController::class, 'destroy']);
     Route::get('interviews', [InterviewController::class, 'index']);
     Route::post('applicants/{application}/interview', [InterviewController::class, 'record']);
 });

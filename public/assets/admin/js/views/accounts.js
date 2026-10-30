@@ -8,6 +8,8 @@
   var ADM = window.ADM;
   var esc = AO.esc, icon = AO.icon;
   var rows = [], colleges = [], loaded = false, created = null;
+  // Admission personnel only: the panel shows them just this task's screens
+  var TASKS = { "": "All screens", personnel: "Admission Personnel", proctor: "Exam Proctor", exam_office: "Exam Office" };
 
   function load() {
     AO.api("GET", "/api/admin/accounts").done(function (res) { rows = res.data; loaded = true; ADM.refresh(); });
@@ -30,9 +32,11 @@
       groups.map(function (g) {
         var list = rows.filter(function (r) { return r.role === g; });
         return '<section class="table-card mb-3" data-reveal><div class="table-toolbar"><strong>' + esc(list[0] ? list[0].role_label : { admission: "Admission personnel", clinic: "University Clinic", college_dean: "College Dean" }[g]) + "</strong></div>" +
-          (list.length ? '<div class="table-responsive"><table class="table data-table"><thead><tr><th>Name</th><th>Email</th><th>Employee no.</th><th>College</th><th>Last sign-in</th><th></th></tr></thead><tbody>' +
+          (list.length ? '<div class="table-responsive"><table class="table data-table"><thead><tr><th>Name</th><th>Email</th><th>Employee no.</th><th>College</th><th>Last sign-in</th>' + (g === "admission" ? "<th>Task</th>" : "") + '<th></th></tr></thead><tbody>' +
             list.map(function (r) {
               return "<tr><td>" + esc(r.name) + "</td><td>" + esc(r.email) + "</td><td>" + esc(r.employee_no || "") + "</td><td>" + esc(r.college || "") + '</td><td class="text-muted">' + (r.last_login_at ? esc(ADM.ui.dt(r.last_login_at)) : "Never") + "</td>" +
+                (g === "admission" ? '<td><select class="form-select form-select-sm" data-account-task="' + r.id + '" aria-label="Task for ' + esc(r.name) + '">' +
+                  $.map(TASKS, function (label, k) { return '<option value="' + k + '"' + ((r.task || "") === k ? " selected" : "") + ">" + label + "</option>"; }).join("") + "</select></td>" : "") +
                 '<td class="text-end"><button class="btn btn-ghost btn-sm" data-toggle-account="' + r.id + '" data-active="' + (r.active ? 1 : 0) + '">' + (r.active ? "Disable" : "Enable") + "</button></td></tr>";
             }).join("") + "</tbody></table></div>" : ADM.ui.empty("users", "No accounts yet")) + "</section>";
       }).join("")
@@ -45,6 +49,15 @@
     AO.api("POST", "/api/admin/accounts", body)
       .done(function (res) { created = { email: body.email, password: res.data.temporary_password }; loaded = false; ADM.refresh(); })
       .fail(function (xhr) { $("#acc-error").text(AO.apiError(xhr)); });
+  });
+  $(document).on("change", "[data-account-task]", function () {
+    var $sel = $(this), id = $sel.data("account-task");
+    AO.api("PATCH", "/api/admin/accounts/" + id + "/task", { task: $sel.val() || null })
+      .done(function (res) {
+        rows.forEach(function (r) { if (r.id === id) r.task = res.data.task; });
+        AO.showToast(res.data.task ? "Task assigned: " + TASKS[res.data.task] + "." : "Task removed: all screens.");
+      })
+      .fail(function (xhr) { AO.showToast(AO.apiError(xhr)); loaded = false; ADM.refresh(); });
   });
   $(document).on("click", "[data-toggle-account]", function () {
     AO.api("PATCH", "/api/admin/accounts/" + $(this).data("toggle-account") + "/active", { active: !+$(this).data("active") })

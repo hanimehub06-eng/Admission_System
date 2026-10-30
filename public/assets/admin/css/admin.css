@@ -2483,62 +2483,382 @@ button.iv-card:hover {
   color: #fff;
 }
 
-/* ---------- Task picker ("What's your task?") ---------- */
-/* All four choices in view (the session list it borrows from scrolls after 320px) */
-.task-options {
-  max-height: none;
-  overflow: visible;
-}
+/* ==========================================================================
+   jQuery UI interactions
+   ========================================================================== */
 
-.task-option {
-  width: 100%;
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  text-align: left;
-}
-
-.task-option strong {
-  display: block;
-  font-size: 15px;
-}
-
-.task-option small {
-  display: block;
-  margin-top: 2px;
-  color: var(--ink-2);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.task-option:focus-visible {
-  outline: 3px solid var(--accent-line);
-  outline-offset: 2px;
-}
-
-.task-icon {
+/* ---------- Dashboard: reorder task cards (Sortable) ---------- */
+.dash-hint {
   display: inline-flex;
-  flex: none;
   align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12.5px;
 }
 
-.task-icon .ico {
-  width: 20px;
-  height: 20px;
+.dash-hint .ico {
+  width: 15px;
+  height: 15px;
 }
 
-/* Top-bar chip that reopens the picker */
-.task-chip {
+.dash-hint button.text-link {
+  padding: 0;
   border: 0;
+  background: none;
+  font-size: inherit;
+}
+
+#task-grid .task-card {
   cursor: pointer;
 }
 
-.task-chip:hover {
-  background: var(--accent-line);
+.task-card.ui-sortable-helper {
+  box-shadow: var(--shadow-lg);
+  transform: rotate(1deg);
+  cursor: grabbing;
+}
+
+.task-placeholder {
+  visibility: visible !important;
+  border: 2px dashed var(--accent-line);
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+
+/* ---------- Exam roster: drag an examinee to another session (Draggable + Droppable) ---------- */
+.move-strip {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.move-strip p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.move-strip p .ico {
+  width: 16px;
+  height: 16px;
+}
+
+.drop-zones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 12px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--tint);
+  transition: border-color .15s, background-color .15s, transform .15s;
+}
+
+.drop-zone .dz-date {
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.drop-zone strong {
+  font-size: 14px;
+}
+
+.drop-zone small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.drop-zone.full {
+  opacity: .55;
+}
+
+/* While an examinee is being dragged: open sessions light up, the one under the pointer fills in */
+.drop-zone.is-ready {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.drop-zone.is-over {
+  border-style: solid;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.drag-col {
+  width: 40px;
+  padding-right: 0 !important;
+}
+
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  cursor: grab;
+}
+
+.drag-handle:hover {
+  background: var(--tint-2);
+  color: var(--accent);
+}
+
+.drag-handle:focus-visible {
+  outline: 3px solid var(--ring);
+}
+
+.drag-handle .ico {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.6;
+}
+
+.roster tr.is-dragging td {
+  opacity: .4;
+}
+
+/* The chip that follows the pointer */
+.drag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: var(--shadow-lg);
+  color: var(--on-accent);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.drag-chip .ico {
+  width: 16px;
+  height: 16px;
+}
+
+/* ---------- Exam roster: select several rows (Selectable) ---------- */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  transition: background-color .15s;
+}
+
+.bulk-bar.has-selection {
+  background: var(--accent-soft);
+}
+
+.bulk-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.bulk-bar.has-selection .bulk-count {
+  color: var(--accent-strong);
+}
+
+.bulk-count .ico {
+  width: 16px;
+  height: 16px;
+}
+
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roster tbody tr[data-select-id] {
+  cursor: default;
+  user-select: none;
+}
+
+.roster tbody tr.ui-selecting td {
+  background: var(--tint-2);
+}
+
+.roster tbody tr.ui-selected td {
+  background: var(--accent-soft);
+}
+
+.roster tbody tr.ui-selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* The lasso drawn while dragging across rows */
+.ui-selectable-helper {
+  position: absolute;
+  z-index: 100;
+  border: 1px dashed var(--accent);
+  background: rgba(35, 145, 79, .08);
+}
+
+/* ---------- Document preview: drag by the header, resize from the edges (Draggable + Resizable) ---------- */
+/* Sized so the whole window (and its resize corner) fits on screen */
+.doc-file {
+  align-self: stretch;
+  width: 100%;
+  height: clamp(220px, calc(100vh - 580px), 60vh);
+  min-height: 160px;
+  margin-top: 12px;
+}
+
+.doc-file img,
+.doc-file iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  object-fit: contain;
+}
+
+@media (min-width: 768px) {
+  #docModal .modal-header {
+    cursor: grab;
+    user-select: none;
+  }
+
+  #docModal .modal-content.ui-draggable-dragging {
+    box-shadow: var(--shadow-lg);
+  }
+
+  #docModal .modal-content.ui-draggable-dragging .modal-header {
+    cursor: grabbing;
+  }
+
+  /* Once resized, the window may grow past the dialog's width; the body scrolls */
+  #docModal .modal-content.is-sized {
+    max-width: none;
+  }
+
+  #docModal .modal-content.is-sized .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  #docModal .ui-resizable-handle {
+    position: absolute;
+    z-index: 2;
+  }
+
+  #docModal .ui-resizable-e {
+    top: 12px;
+    right: -4px;
+    bottom: 12px;
+    width: 8px;
+    cursor: ew-resize;
+  }
+
+  #docModal .ui-resizable-w {
+    top: 12px;
+    bottom: 12px;
+    left: -4px;
+    width: 8px;
+    cursor: ew-resize;
+  }
+
+  #docModal .ui-resizable-sw {
+    bottom: -4px;
+    left: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nesw-resize;
+  }
+
+  #docModal .ui-resizable-s {
+    right: 12px;
+    bottom: -4px;
+    left: 12px;
+    height: 8px;
+    cursor: ns-resize;
+  }
+
+  /* Corner grip */
+  #docModal .ui-resizable-se {
+    right: 4px;
+    bottom: 4px;
+    width: 14px;
+    height: 14px;
+    border-right: 2px solid var(--line-strong);
+    border-bottom: 2px solid var(--line-strong);
+    border-bottom-right-radius: 4px;
+    cursor: nwse-resize;
+  }
+
+  #docModal .ui-resizable-se:hover {
+    border-color: var(--accent);
+  }
+}
+
+@media (max-width: 767.98px) {
+  #docModal .ui-resizable-handle {
+    display: none !important;
+  }
+}
+
+/* ---------- Document preview as a floating window (no backdrop): the page behind stays usable ---------- */
+@media (min-width: 768px) {
+
+  /* Clicks and scrolling outside the window reach the page */
+  #docModal {
+    pointer-events: none;
+  }
+
+  #docModal .modal-content {
+    border: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Bootstrap locks page scrolling while a modal is open; this one shouldn't */
+  body.doc-floating {
+    overflow: auto !important;
+    padding-right: 0 !important;
+  }
+}
+
+/* Wide screens: opens docked on the right, leaving the applicant's details visible on the left */
+@media (min-width: 1200px) {
+  #docModal .doc-dialog {
+    max-width: 600px;
+    margin-top: 72px;   /* below the top bar */
+    margin-right: 24px;
+    margin-left: auto;
+  }
+}
+
+/* Phones: a normal dialog over a dimmed page */
+@media (max-width: 767.98px) {
+  #docModal {
+    background: rgba(16, 36, 24, .45);
+  }
 }

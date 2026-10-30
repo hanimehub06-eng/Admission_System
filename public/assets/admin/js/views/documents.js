@@ -56,6 +56,8 @@
   /* ==========================================================================
      ONE APPLICANT'S FILES
      ========================================================================== */
+  // Documents or Profile: staff compare the files with the details the applicant typed
+  var reviewTab = "documents", reviewId = null;
   function nextInQueue(after) { return queue().filter(function (a) { return a.id !== after; })[0]; }
 
   function renderReview($el, id) {
@@ -69,6 +71,7 @@
     var s = ADM.docSummary(a);
     var editable = !a.exam;
     var next = nextInQueue(a.id);
+    if (reviewId !== id) { reviewTab = "documents"; reviewId = id; }
     var outcome = "";
     if (!s.pending && ADM.canApprove(a)) {
       outcome = '<div class="rq-outcome ok">' + icon("check") + "<span><strong>All " + s.total + " documents verified.</strong> Approve them for the entrance exam to issue the permit.</span>" +
@@ -78,14 +81,18 @@
     }
 
     $el.html(back +
+      '<nav class="tabs" role="tablist" data-reveal>' + [["documents", "Documents"], ["profile", "Profile"]].map(function (t) {
+        return '<button type="button" role="tab" class="tab' + (reviewTab === t[0] ? " active" : "") + '" aria-selected="' + (reviewTab === t[0]) + '" data-review-tab="' + t[0] + '">' + t[1] + "</button>";
+      }).join("") + "</nav>" +
       '<section class="table-card" data-reveal><div class="table-toolbar">' +
       '<div class="who">' + ui.avatar(a) + '<span><strong>' + esc(ADM.fullName(a)) + '</strong><small>' + esc(a.id) + " · submitted " + AO.fmt(a.submittedAt) + "</small></span></div>" +
       '<div class="d-flex gap-2 ms-auto flex-wrap">' +
       '<span class="text-muted small align-self-center">' + s.verified + " of " + s.total + " verified</span>" +
       (editable && s.pending ? '<button class="btn btn-ok btn-sm" type="button" data-rq-verify-all="' + esc(a.id) + '">' + icon("check") + "Verify all " + s.pending + "</button>" : "") +
       (!s.pending && next ? '<a class="btn btn-ghost btn-sm" href="#/documents/' + esc(next.id) + '">Next applicant' + icon("arrowR") + "</a>" : "") +
-      "</div></div>" + outcome +
-      '<ul class="review-list">' + ui.docItems(a, editable) + "</ul></section>"
+      "</div></div>" +
+      (reviewTab === "documents" ? outcome + '<ul class="review-list">' + ui.docItems(a, editable) + "</ul></section>"
+        : "</section>" + '<div class="mt-3" data-reveal>' + ADM.views.applicant.profile(a) + "</div>")
     );
   }
 
@@ -97,6 +104,8 @@
     var s = ADM.docSummary(a);
     AO.showToast(!s.pending && ADM.canApprove(a) ? ADM.fullName(a) + " is fully verified. Approve them for the exam." : msg);
   }
+
+  $(document).on("click", "#view-docreview [data-review-tab]", function () { reviewTab = $(this).data("review-tab"); ADM.refresh(); });
 
   var t;
   $(document).on("input", "#doc-q", function () {

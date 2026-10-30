@@ -1826,3 +1826,207 @@ button.step-dot:hover {
 .iv-where dd { margin: 2px 0 0; font-weight: 600; }
 .iv-pending { margin: 12px 0 0; color: var(--muted); }
 @media (max-width: 640px) { .iv-where { grid-template-columns: 1fr; } }
+
+/* ---------- Program list beside the choices: drag onto a choice (Draggable + Droppable) or click ---------- */
+.program-picker {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--tint);
+}
+
+.pp-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.pp-head p {
+  margin: 2px 0 12px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.pp-search {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+/* The icon's wrapper is taken out of the flow so it doesn't push the input down */
+.pp-search>[data-icon] {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.pp-search .ico {
+  width: 16px;
+  height: 16px;
+}
+
+.pp-search .form-control {
+  padding-left: 36px;
+  background: var(--surface);
+}
+
+.pp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  margin: 0 -4px;
+  padding: 2px 4px;
+  overflow-y: auto;
+}
+
+.program-chip {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px 9px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.3;
+  text-align: left;
+  cursor: grab;
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+
+.program-chip:hover {
+  border-color: var(--accent-line);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(16, 36, 24, .05));
+}
+
+.program-chip:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.program-chip.is-dragging {
+  opacity: .45;
+}
+
+.pc-grip {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted);
+}
+
+.pc-grip .ico {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.6;
+}
+
+.pc-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.pc-suggested {
+  display: block;
+  margin-top: 2px;
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* Already one of the three choices */
+.program-chip.is-chosen {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.pc-badge {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.pp-empty {
+  margin: 8px 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* The chip that follows the pointer */
+.program-drag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 340px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 12px 28px rgba(21, 38, 28, .2);
+  color: var(--on-accent);
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.program-drag .ico {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+/* While dragging: the choices light up, the one under the pointer gets a solid outline */
+.choice-drop {
+  border-radius: var(--radius-sm);
+  transition: background-color .15s, box-shadow .15s;
+}
+
+.choice-drop.is-ready .form-select {
+  border-style: dashed;
+  border-color: var(--accent-line);
+  background-color: var(--accent-soft);
+}
+
+.choice-drop.is-over .form-select {
+  border-style: solid;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Side by side: the card takes exactly the height of the choices column (it
+   doesn't add any of its own), and its list scrolls inside */
+@media (min-width: 992px) {
+  .pp-col {
+    position: relative;
+    min-height: 280px;
+  }
+
+  .pp-col .program-picker {
+    position: absolute;
+    top: 0;
+    right: calc(var(--bs-gutter-x) * .5);
+    bottom: 0;
+    left: calc(var(--bs-gutter-x) * .5);
+  }
+}
+
+/* Phones: the list sits under the choices, shorter */
+@media (max-width: 991.98px) {
+  .program-picker {
+    max-height: 360px;
+  }
+}

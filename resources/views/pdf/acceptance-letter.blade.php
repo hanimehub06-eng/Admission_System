@@ -11,7 +11,7 @@
 
 <table class="grid" style="margin: 14px 0;">
     <tr><td class="label">Applicant</td><td>{{ $applicant->fullName() }}</td></tr>
-    <tr><td class="label">Application ID</td><td>{{ $application->number }}</td></tr>
+    <tr><td class="label">Applicant ID</td><td>{{ $application->applicant_no }}</td></tr>
     <tr><td class="label">Program</td><td>{{ $program?->name }}</td></tr>
     <tr><td class="label">Campus</td><td>{{ $application->campus ?: 'Main Campus' }}</td></tr>
     <tr><td class="label">Accept by</td><td><strong>{{ $deadline }}</strong></td></tr>

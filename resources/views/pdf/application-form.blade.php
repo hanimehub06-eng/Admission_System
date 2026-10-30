@@ -7,7 +7,7 @@
     <tr>
         <td>
             <h1>Application Form</h1>
-            <div class="muted">{{ $application->period->label }} · Application ID {{ $application->number }}</div>
+            <div class="muted">{{ $application->period->label }} · Applicant ID {{ $application->applicant_no ?? 'issued once admission approves the application' }}</div>
             <div class="muted">Submitted {{ $application->submitted_at->setTimezone(config('admission.display_timezone'))->format('F j, Y') }}</div>
         </td>
         @if ($photo)

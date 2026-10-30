@@ -30,23 +30,17 @@ $(function () {
     proctor: ["exams"],
     read_only: ["dashboard", "applicants", "reports"]
   };
-  /* Task picker ("What's your task?"): admission office accounts pick today's
-     task after signing in, and the menu shows only its screens. A UI filter
-     only: the server still enforces each account's role on every request.
-     The Admin can also pick "all"; the Super Admin is never asked (every screen). Kept for this tab until sign-out. */
+  /* Task: the Super Admin assigns each Admission Personnel account a task
+     (Accounts), and the menu shows only its screens. No task: every screen of
+     the role. A UI filter only: the server still enforces the role. */
   var TASKS = {
     personnel: { label: "Admission Personnel", screens: ["applicants", "documents"] },
     proctor: { label: "Exam Proctor", screens: ["exams", "reports"] },
-    exam_office: { label: "Exam Office", screens: ["results"] },
-    all: { label: "All tasks" }
+    exam_office: { label: "Exam Office", screens: ["results"] }
   };
-  var TASK_ROLES = ["admission", "admission_head"];
-  var TASK_KEY = "admitone.task";
-  function picksTask() { return TASK_ROLES.indexOf(ADM.STAFF.roleKey) !== -1; }
-  function canPickAll() { return ADM.STAFF.roleKey === "admission_head"; }
   function task() {
-    var t = AO.readJSON("session", TASK_KEY);
-    return picksTask() && TASKS[t] && (t !== "all" || canPickAll()) ? t : null;
+    var t = ADM.STAFF.task;
+    return ADM.STAFF.roleKey === "admission" && TASKS[t] ? t : null;
   }
   function allowed() {
     var t = task();
@@ -71,7 +65,6 @@ $(function () {
     $("#super-chip").prop("hidden", ADM.STAFF.roleKey !== "super_admin");
     $(".crumb-root").text(dean ? "College dean" : clinic ? "University clinic" : ADM.STAFF.roleKey === "super_admin" ? "Super admin" : "Admission office");
     applyAccess();
-    if (picksTask() && !task()) { askTask(); return; }
     if (!location.hash) location.replace(home());
     route();
   }
@@ -83,32 +76,13 @@ $(function () {
     $("#quick-search").prop("hidden", allowed().indexOf("applicants") === -1);
     $(".sidebar .brand").attr("href", home());
     var t = task();
-    $("#task-chip").prop("hidden", !picksTask());
-    $("#task-chip-label").text(t ? "Task: " + TASKS[t].label : "Pick a task");
+    $("#task-chip").prop("hidden", !t);
+    $("#task-chip-label").text(t ? "Task: " + TASKS[t].label : "");
   }
-
-  function askTask() {
-    $('#taskModal [data-task="all"]').prop("hidden", !canPickAll());
-    $("#task-cancel-row").prop("hidden", !task());   // the first time, a task must be picked
-    bootstrap.Modal.getOrCreateInstance(document.getElementById("taskModal")).show();
-  }
-  $("#task-chip").on("click", askTask);
-  $("#taskModal").on("click", "[data-task]", function () {
-    var picked = $(this).data("task");
-    // Every choice goes in the audit log (Audit log → "Task choices")
-    AO.api("POST", "/api/admin/task", { task: picked })
-      .done(function () { ADM.state.audit.push({ at: ADM.nowISO(), by: ADM.STAFF.name, text: "Chose the task: " + $('#taskModal [data-task="' + picked + '"] strong').text(), action: "staff.task" }); })
-      .fail(function () { AO.showToast("Your task choice couldn't be saved to the audit log."); });
-    AO.writeJSON("session", TASK_KEY, picked);
-    bootstrap.Modal.getOrCreateInstance(document.getElementById("taskModal")).hide();
-    applyAccess();
-    AO.showToast("Task: " + TASKS[task()].label + ".");
-    ADM.go(home());
-  });
 
   function leaveApp() {
     AO.setToken(null);
-    AO.removeKey("session", TASK_KEY);
+    $(".modal.show").each(function () { bootstrap.Modal.getInstance(this).hide(); });   // e.g. a floating document window
     $(".tooltip").remove();
     $("#app").prop("hidden", true);
     $("#auth-screen").prop("hidden", false);

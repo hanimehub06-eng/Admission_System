@@ -21,7 +21,7 @@
         @endif
     </tr>
     <tr><td class="label">Applicant</td><td>{{ $applicant->fullName() }}</td></tr>
-    <tr><td class="label">Application ID</td><td>{{ $application->number }}</td></tr>
+    <tr><td class="label">Applicant ID</td><td>{{ $application->applicant_no }}</td></tr>
     <tr><td class="label">Date</td><td>{{ $session->date->format('l, F j, Y') }}</td></tr>
     <tr><td class="label">Time</td><td>{{ $batch }} · {{ $time }}</td></tr>
     <tr><td class="label">Venue</td><td>{{ $session->venue }}</td></tr>

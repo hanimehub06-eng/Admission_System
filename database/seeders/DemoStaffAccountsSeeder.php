@@ -9,9 +9,8 @@ use App\Services\AuditLogger;
 use Illuminate\Database\Seeder;
 
 /**
- * Demo staff accounts, on every server, until the Employment System is
- * connected (staff accounts will come from there; see
- * StaffDirectoryService). Decided by the project owner on 2026-10-24, so
+ * Demo staff accounts, on every server, until EMS is connected (real
+ * staff accounts are then linked by employee no.; see ems:sync-staff). Decided by the project owner on 2026-10-24, so
  * the portals can be used before that integration exists. Running it again
  * resets these passwords and re-enables the accounts.
  *

@@ -112,3 +112,23 @@ JSON API under `/api`, used by the existing applicant portal and admission offic
 No other system calls the OAS (School Systems API Standard, [API_Guide.md](API_Guide.md)). The only public endpoint besides this API is `GET /up` (health check, no auth).
 
 The OAS's own calls **out**, all Bearer-token, `/api/v1` and JSON, are described in [INTEGRATIONS.md](INTEGRATIONS.md): it pulls staff status from EMS (`GET /employees/{employee_no}`), sends record changes, files and applicant packets to the DMS (`POST /history`, `/documents`, `/applicant-packets`), and sends each admitted applicant to the Enrollment System (body in [openapi.json](openapi.json)).
+
+## Admission roles and tasks (2026-10-31)
+
+An Admission Personnel account can be given a task (`personnel`, `proctor`, `exam_office`) by the Admission Head or the Super Admin. With a task, the server allows only that task's routes (`task` middleware); without one, every admission route works as before. The Admission Head can do everything except take exam attendance.
+
+| Method | Path | Who | Notes |
+|---|---|---|---|
+| GET / POST | `/api/admin/announcements` | admission_head, super_admin | Dates and deadlines. Body: `{ title, body, event_date?: "YYYY-MM-DD", published?: bool }` |
+| PATCH / DELETE | `/api/admin/announcements/{id}` | admission_head, super_admin | `published: true` makes it visible to applicants |
+| GET | `/api/applicant/announcements` | applicant | Published only, nearest date first |
+| GET | `/api/admin/accounts` · PATCH `/api/admin/accounts/{user}/task` | admission_head, super_admin | Assign a task. Body: `{ task: "personnel"\|"proctor"\|"exam_office"\|null }` |
+| GET | `/api/admin/applicants/{number}/exam-permit` | personnel task | Exam permit PDF (after approval) |
+| GET | `/api/admin/applicants/{number}/slip` | personnel task | Application slip PDF (after submission) |
+| PATCH | `/api/admin/applicants/{number}/exam` · POST `/api/admin/exam/check-in` | proctor task, proctor role | Attendance; not the Admission Head |
+| POST `/api/admin/applicants/{number}/result` · `/placement` · `/api/admin/results/import` | | exam_office task | Score and passed/failed |
+| GET / POST | `/api/admin/applicants/{number}/reports` | GET: office, proctor · POST: proctor task, proctor role | Body: `{ category: incident\|misconduct\|health\|other, body }` |
+| GET / POST | `/api/dean/exam-questions` | college_dean | Own college. Body: `{ question, choices: string[2..6], answer: index }` |
+| PATCH / DELETE | `/api/dean/exam-questions/{id}` | college_dean | Another college's question answers 404 |
+
+The Applicant ID (`applicationId` in the portal, `applicantNo` in the office list, e.g. `2026-00001`) is issued when admission approves the application; it is `null` before. The application `number` (`AD-2026-00001`) stays the internal reference used in URLs.

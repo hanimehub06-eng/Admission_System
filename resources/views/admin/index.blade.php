@@ -133,8 +133,8 @@
             <input type="search" id="quick-search-input" placeholder="Find applicant, ID or LRN"
               aria-label="Find an applicant by name, ID or LRN">
           </form>
-          <button class="role-chip task-chip" id="task-chip" type="button" hidden aria-label="Switch task"><span
-              data-icon="refresh"></span><span id="task-chip-label"></span></button>
+          <span class="role-chip" id="task-chip" hidden title="Assigned by the Super Admin (Accounts)"><span
+              data-icon="users"></span><span id="task-chip-label"></span></span>
           <span class="role-chip" id="super-chip" hidden><span data-icon="shield"></span>Super Admin</span>
           <span class="id-chip"><span>AY</span>2027–2028</span>
         </div>
@@ -174,45 +174,6 @@
        ========================================================= -->
 
   <!-- Requires resubmission: remark -->
-  <!-- Task picker: admission office accounts choose today's task; the menu shows only its screens -->
-  <div class="modal fade" id="taskModal" tabindex="-1" aria-labelledby="taskModalTitle" aria-hidden="true"
-    data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-body">
-          <span class="modal-icon" data-icon="users"></span>
-          <h2 class="modal-title-serif" id="taskModalTitle">What's your task?</h2>
-          <p class="mb-3">Pick what you're working on. The menu shows only the screens for that task, and you can switch
-            any time from the top bar.</p>
-          <div class="session-options task-options" role="group" aria-label="Your task">
-            <button class="session-option task-option" type="button" data-task="personnel">
-              <span class="task-icon" data-icon="folder"></span>
-              <span><strong>Admission Personnel</strong><small>Handle applicants' documents and approve applicants. Issue
-                  exam slips and permits.</small></span>
-            </button>
-            <button class="session-option task-option" type="button" data-task="proctor">
-              <span class="task-icon" data-icon="clock"></span>
-              <span><strong>Exam Proctor</strong><small>Take attendance of applicants taking the exam. Report on
-                  students.</small></span>
-            </button>
-            <button class="session-option task-option" type="button" data-task="exam_office">
-              <span class="task-icon" data-icon="award"></span>
-              <span><strong>Exam Office</strong><small>Record exam scores. Determine which students
-                  passed.</small></span>
-            </button>
-            <button class="session-option task-option" type="button" data-task="all" hidden>
-              <span class="task-icon" data-icon="shield"></span>
-              <span><strong>All tasks (Admin)</strong><small>Every screen your account can use.</small></span>
-            </button>
-          </div>
-        </div>
-        <div class="modal-footer" id="task-cancel-row" hidden>
-          <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Keep current task</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="modal fade" id="remarkModal" tabindex="-1" aria-labelledby="remarkModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <form class="modal-content" id="remark-form" novalidate>
@@ -367,8 +328,9 @@
   </div>
 
   <!-- Document preview -->
-  <div class="modal fade" id="docModal" tabindex="-1" aria-labelledby="docModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+  <!-- A floating window on wide screens: no backdrop or focus trap, so the page behind (e.g. the Profile tab) stays usable -->
+  <div class="modal fade" id="docModal" tabindex="-1" aria-labelledby="docModalTitle" aria-hidden="true" data-bs-backdrop="false" data-bs-focus="false">
+    <div class="modal-dialog modal-lg doc-dialog">
       <div class="modal-content">
         <div class="modal-header">
           <h2 class="modal-title fs-6 fw-bold" id="docModalTitle">Document</h2>

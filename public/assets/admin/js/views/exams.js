@@ -99,6 +99,11 @@
       if (a.exam.attendance) c[a.exam.attendance]++;
     });
     var unmarked = roster.length - c.present - c.absent;
+    // Drag an examinee onto another session (jQuery UI Draggable + Droppable); the handle also opens the session picker on click
+    var canMove = ["admission", "admission_head", "super_admin"].indexOf(ADM.STAFF.roleKey) !== -1;
+    var targets = canMove ? ADM.sortedSessions().filter(function (t) { return !ADM.sessionPast(t) && t.id !== id; }) : [];
+    function movable(a) { return targets.length && !a.result && a.exam.attendance !== "present"; }
+    var anyMovable = roster.some(movable);
 
     $el.html(
       '<a class="back-link" href="#/exams" data-reveal>' + icon("arrowL") + "All sessions</a>" +
@@ -113,12 +118,27 @@
 
       (!open ? '<div class="info-note" data-reveal>' + icon("lock") + "<p>Permit checks and attendance open on exam day. Print the roster to bring to the venue.</p></div>" : "") +
 
+      (anyMovable ? '<section class="move-strip" data-reveal><p>' + icon("grip") + "Drag an examinee by the handle onto a session to move them there, or click the handle to choose.</p>" +
+        '<div class="drop-zones">' + targets.map(function (t) {
+          var left = t.capacity - ADM.sessionRoster(t.id).length;
+          return '<div class="drop-zone' + (left > 0 ? "" : " full") + '" data-drop-session="' + esc(t.id) + '"><span class="dz-date">' + AO.fmt(t.date, { month: "short", day: "numeric" }) + "</span>" +
+            "<strong>" + esc(ADM.BATCHES[t.batch].label) + "</strong><small>" + esc(t.venue) + "</small><small>" + (left > 0 ? left + " seats left" : "Full") + "</small></div>";
+        }).join("") + "</div></section>" : "") +
+
       '<section class="table-card" data-reveal>' +
-      (roster.length ? '<div class="table-responsive"><table class="table data-table roster"><thead><tr><th>#</th><th>Examinee</th><th>Permit no.</th><th>1st choice</th><th class="text-center">Permit</th><th class="text-center">Form</th><th>Attendance</th></tr></thead><tbody>' +
+      // Exam day: select several rows (jQuery UI Selectable) and mark them at once
+      (open && roster.some(function (a) { return !a.result; }) ? '<div class="bulk-bar" id="bulk-bar"><span class="bulk-count" id="bulk-count">' + icon("grid") + "Drag across rows, or Ctrl+click, to select several examinees</span>" +
+        '<span class="bulk-actions"><button class="btn btn-ghost btn-sm" type="button" data-bulk="checks" disabled>' + icon("check") + "Permit and form checked</button>" +
+        '<button class="btn btn-ghost btn-sm" type="button" data-bulk="present" disabled>Present</button>' +
+        '<button class="btn btn-ghost btn-sm" type="button" data-bulk="absent" disabled>Absent</button>' +
+        '<button class="btn btn-ghost btn-sm" type="button" data-bulk="all">Select all</button>' +
+        '<button class="btn btn-ghost btn-sm" type="button" data-bulk="none" hidden>Clear</button></span></div>' : "") +
+      (roster.length ? '<div class="table-responsive"><table class="table data-table roster"><thead><tr>' + (anyMovable ? '<th class="drag-col"><span class="visually-hidden">Move</span></th>' : "") + '<th>#</th><th>Examinee</th><th>Permit no.</th><th>1st choice</th><th class="text-center">Permit</th><th class="text-center">Form</th><th>Attendance</th></tr></thead><tbody>' +
         roster.map(function (a, i) {
           var locked = !open || !!a.result;
           var both = a.exam.permitChecked && a.exam.formChecked;
-          return "<tr>" +
+          return "<tr" + (movable(a) ? ' data-movable="' + esc(a.id) + '"' : "") + (!locked ? ' data-select-id="' + esc(a.id) + '"' : "") + ">" +
+            (anyMovable ? '<td class="drag-col">' + (movable(a) ? '<button class="drag-handle" type="button" data-move-exam="' + esc(a.id) + '" title="Drag to another session, or click to choose" aria-label="Move ' + esc(ADM.fullName(a)) + ' to another session">' + icon("grip") + "</button>" : "") + "</td>" : "") +
             '<td class="text-muted">' + (i + 1) + "</td>" +
             '<td><a href="#/applicants/' + esc(a.id) + '" class="plain-link">' + ui.applicantCell(a) + "</a></td>" +
             '<td class="mono">' + esc(a.exam.permit) + "</td>" +
@@ -133,7 +153,59 @@
         : ui.empty("users", "No examinees yet", "Approve applicants for this session from their record.")) +
       "</section>"
     );
+    if (anyMovable) enableMoves($el);
+    $el.find(".roster tbody").selectable({
+      filter: "tr[data-select-id]", cancel: "input, button, a, label",
+      stop: syncBulk, unselected: syncBulk
+    });
   }
+
+  function picked() { return $("#view-session tr.ui-selected").map(function () { return ADM.applicant($(this).data("select-id")); }).get(); }
+  function syncBulk() {
+    var n = picked().length;
+    $("#bulk-count").html(icon("grid") + (n ? "<strong>" + n + "</strong> selected" : "Drag across rows, or Ctrl+click, to select several examinees"));
+    $("#bulk-bar").toggleClass("has-selection", n > 0).find("[data-bulk=checks], [data-bulk=present], [data-bulk=absent]").prop("disabled", !n);
+    $("#bulk-bar [data-bulk=none]").prop("hidden", !n);
+  }
+  $(document).on("click", "#bulk-bar [data-bulk]", function () {
+    var kind = $(this).data("bulk"), $rows = $("#view-session tr[data-select-id]");
+    if (kind === "all" || kind === "none") { $rows.toggleClass("ui-selected", kind === "all"); syncBulk(); return; }
+    var list = picked(), skipped = 0;
+    list.forEach(function (a) {
+      if (kind === "checks") { ADM.actions.setCheck(a, "permitChecked", true); ADM.actions.setCheck(a, "formChecked", true); }
+      else if (!ADM.actions.setAttendance(a, kind)) skipped++;
+    });
+    ADM.refresh();
+    var done = list.length - skipped;
+    AO.showToast((kind === "checks" ? done + " marked permit and form checked" : done + " marked " + kind) + (skipped ? ". " + skipped + " skipped: check their permit and form first." : "."));
+  });
+
+  // A drop asks first (drops can slip); the session picker already is the confirmation
+  function moveExaminee(a, sid, confirmed) {
+    var t = ADM.session(sid);
+    function go() {
+      if (ADM.actions.reschedule(a, sid)) { ADM.refresh(); AO.showToast(ADM.fullName(a) + " moved to " + ADM.sessionLabel(t) + "."); }
+      else AO.showToast(ADM.sessionLabel(t) + " is full.");
+    }
+    if (confirmed) { go(); return; }
+    ADM.ui.confirm({ title: "Move " + ADM.fullName(a) + "?", text: "Their exam moves to " + ADM.sessionLabel(t) + ". Permit checks and attendance for this session are cleared.", ok: "Move", icon: "refresh" }, go);
+  }
+  function enableMoves($el) {
+    $el.find("tr[data-movable]").draggable({
+      handle: ".drag-handle", cancel: "", appendTo: "body", revert: "invalid", revertDuration: 180, cursor: "grabbing", cursorAt: { left: 18, top: 18 }, zIndex: 2000,
+      helper: function () { var a = ADM.applicant($(this).data("movable")); return $('<div class="drag-chip">' + icon("user") + esc(ADM.fullName(a)) + "</div>"); },
+      start: function () { $(this).addClass("is-dragging"); },
+      stop: function () { $(this).removeClass("is-dragging"); }
+    });
+    $el.find(".drop-zone:not(.full)").droppable({
+      accept: "tr[data-movable]", tolerance: "pointer", classes: { "ui-droppable-active": "is-ready", "ui-droppable-hover": "is-over" },
+      drop: function (e, ui) { moveExaminee(ADM.applicant(ui.draggable.data("movable")), $(this).data("drop-session")); }
+    });
+  }
+  $(document).on("click", "#view-session [data-move-exam]", function () {
+    var a = ADM.applicant($(this).data("move-exam"));
+    ADM.ui.askSession(a, "reschedule", function (sid) { moveExaminee(a, sid, true); });
+  });
 
   $(document).on("change", "#view-session [data-check]", function () {
     var a = ADM.applicant($(this).data("id"));

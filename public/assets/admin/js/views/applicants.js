@@ -356,6 +356,7 @@
 
   ADM.views.applicant = {
     title: function (id) { var a = ADM.applicant(id); return a ? ADM.fullName(a) : "Applicant"; },
-    render: renderRecord
+    render: renderRecord,
+    profile: profileTab   // also shown beside the files on Document verification
   };
 })(jQuery);

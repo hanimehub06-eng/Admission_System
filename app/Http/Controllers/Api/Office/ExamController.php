@@ -10,6 +10,7 @@ use App\Models\ExamSession;
 use App\Models\Program;
 use App\Services\ExamService;
 use App\Services\OfferService;
+use App\Services\PdfService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,18 @@ class ExamController extends Controller
         $session = $this->exams->createSession($data['date'], $data['batch'], $data['venue'], $data['capacity'], $request->user());
 
         return response()->json(['data' => $this->presenter->session($session)], 201);
+    }
+
+    /** Task 2.7: the office issues (prints) an applicant's exam permit. */
+    public function permit(Application $application, PdfService $pdf): Response
+    {
+        return $pdf->examPermit($application)->stream("exam-permit-{$application->number}.pdf");
+    }
+
+    /** Task 2.7: the office issues the applicant's slip (the submitted application form). */
+    public function slip(Application $application, PdfService $pdf): Response
+    {
+        return $pdf->applicationForm($application)->stream("application-slip-{$application->number}.pdf");
     }
 
     /** Approve for the exam. Without a sessionId the earliest session with a free seat is used (FR-14). */

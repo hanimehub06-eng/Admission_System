@@ -59,7 +59,8 @@
     alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
     clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/>',
     flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
-    filter: '<path d="M4 5h16l-6 7.5V19l-4 2v-8.5z"/>'
+    filter: '<path d="M4 5h16l-6 7.5V19l-4 2v-8.5z"/>',
+    grip: '<circle cx="9" cy="6" r=".6"/><circle cx="15" cy="6" r=".6"/><circle cx="9" cy="12" r=".6"/><circle cx="15" cy="12" r=".6"/><circle cx="9" cy="18" r=".6"/><circle cx="15" cy="18" r=".6"/>'
   };
   var STAR = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 1.5c.7 5.6 3.4 8.6 10.5 10.5-7.1 1.9-9.8 4.9-10.5 10.5-.7-5.6-3.4-8.6-10.5-10.5C8.6 10.1 11.3 7.1 12 1.5z"/></svg>';
 

@@ -13,7 +13,7 @@
   function rows() {
     return ADM.auditTrail().filter(function (r) {
       if (f.who && r.by !== f.who) return false;
-      if (f.kind === "task" && r.action !== "staff.task") return false;
+      if (f.kind === "task" && r.action !== "account.task") return false;
       if (f.q && (r.text + " " + r.target).toLowerCase().indexOf(f.q.toLowerCase()) === -1) return false;
       return true;
     });
@@ -34,8 +34,8 @@
       '<div class="info-note" data-reveal>' + icon("lock") + "<p><strong>Read-only.</strong> Audit entries can't be edited or deleted by admission personnel.</p></div>" +
       '<section class="table-card" data-reveal><div class="table-toolbar">' +
       '<div class="search-field">' + icon("search") + '<input type="search" class="form-control" id="audit-q" placeholder="Search actions or applicants" aria-label="Search the audit log" value="' + esc(f.q) + '"></div>' +
-      // Task choices: which account picked which task in the "What's your task?" pop-up
-      '<select class="form-select" id="audit-kind" aria-label="Filter by kind"><option value="">All actions</option><option value="task"' + (f.kind === "task" ? " selected" : "") + ">Task choices</option></select>" +
+      // Task assignments: which personnel account the Super Admin gave which task (Accounts)
+      '<select class="form-select" id="audit-kind" aria-label="Filter by kind"><option value="">All actions</option><option value="task"' + (f.kind === "task" ? " selected" : "") + ">Task assignments</option></select>" +
       '<select class="form-select" id="audit-who" aria-label="Filter by person"><option value="">Everyone</option>' +
       Object.keys(people).sort().map(function (p) { return '<option' + (f.who === p ? " selected" : "") + ">" + esc(p) + "</option>"; }).join("") + "</select></div>" +
       (page.length ? '<div class="table-responsive"><table class="table data-table"><thead><tr><th style="width:190px">When</th><th style="width:150px">By</th><th>Action</th><th>Record</th></tr></thead><tbody>' +

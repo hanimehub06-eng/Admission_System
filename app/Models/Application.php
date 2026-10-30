@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
-    'number', 'applicant_id', 'admission_period_id', 'status', 'campus', 'offered_program_id', 'form_progress', 'submitted_at', 'locked_at',
+    'number', 'applicant_no', 'applicant_id', 'admission_period_id', 'status', 'campus', 'offered_program_id', 'form_progress', 'submitted_at', 'locked_at',
     'offered_at', 'acceptance_deadline', 'acceptance_reminded_at', 'offer_accepted_at', 'forfeited_at', 'medical_submitted_at', 'admitted_at',
 ])]
 class Application extends Model

@@ -9,9 +9,8 @@ namespace App\Enums;
  * T10) and Medical stays "clinic", so existing accounts and tokens keep
  * working.
  *
- * Staff accounts will come from the Employment System
- * (POST /api/integrations/employees); until it is connected they are made
- * with `php artisan user:create`.
+ * Staff accounts are made by the Super Admin (Admin → Accounts) or with
+ * `php artisan user:create`; ems:sync-staff disables those EMS says left.
  */
 enum Role: string
 {

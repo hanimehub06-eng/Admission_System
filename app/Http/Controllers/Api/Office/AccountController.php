@@ -18,6 +18,9 @@ class AccountController extends Controller
 {
     private const MANAGED = [Role::Admission, Role::Clinic, Role::CollegeDean];
 
+    /** Tasks an Admission Personnel account can be assigned (the panel shows only their screens). */
+    public const TASKS = ['personnel' => 'Admission Personnel', 'proctor' => 'Exam Proctor', 'exam_office' => 'Exam Office'];
+
     public function index(): JsonResponse
     {
         $users = User::role(array_map(fn (Role $r) => $r->value, self::MANAGED), 'api')
@@ -26,7 +29,7 @@ class AccountController extends Controller
         return response()->json(['data' => $users->map(fn (User $u) => [
             'id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'employee_no' => $u->employee_id,
             'role' => $u->primaryRole()?->value, 'role_label' => $u->primaryRole()?->label(),
-            'college' => $u->deanOf?->code, 'active' => (bool) $u->is_active,
+            'college' => $u->deanOf?->code, 'active' => (bool) $u->is_active, 'task' => $u->task,
             'last_login_at' => $u->last_login_at?->toIso8601String(),
         ])->all()]);
     }
@@ -56,6 +59,18 @@ class AccountController extends Controller
 
         // Shown once: the super admin hands it to the new staff member
         return response()->json(['data' => ['id' => $user->id, 'temporary_password' => $password]], 201);
+    }
+
+    public function setTask(Request $request, User $user, AuditLogger $audit): JsonResponse
+    {
+        $task = $request->validate(['task' => ['present', 'nullable', Rule::in(array_keys(self::TASKS))]])['task'];
+        if ($user->primaryRole() !== Role::Admission) {
+            throw new BusinessRuleException('Only admission personnel accounts are given a task.');
+        }
+        $user->forceFill(['task' => $task])->save();
+        $audit->record('account.task', $task ? "Assigned {$user->name} ({$user->email}) the task: ".self::TASKS[$task] : "Removed the task of {$user->name} ({$user->email})", $user, meta: ['task' => $task]);
+
+        return response()->json(['data' => ['id' => $user->id, 'task' => $task]]);
     }
 
     public function setActive(Request $request, User $user, AuditLogger $audit): JsonResponse
