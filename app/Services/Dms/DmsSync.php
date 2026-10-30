@@ -4,7 +4,10 @@ namespace App\Services\Dms;
 
 use App\Jobs\DeliverDmsEvent;
 use App\Models\Application;
+use App\Models\ApplicationDocument;
 use App\Models\DmsOutboxEvent;
+use App\Models\Requirement;
+use App\Services\AdmittedApplicantsService;
 use Illuminate\Support\Str;
 
 /**
@@ -18,6 +21,9 @@ use Illuminate\Support\Str;
  * document.flagged, exam.scheduled, exam.attendance, exam.result,
  * interview.recorded, offer.accepted, offer.forfeited, admission.completed.
  * Restricted values (exam score, interview grade) are marked as such.
+ *
+ * Two more go out on admission (admitted()): packet.released (to the DMS)
+ * and enrollment.admitted (to the Enrollment System), sent as-is.
  */
 class DmsSync
 {
@@ -27,14 +33,33 @@ class DmsSync
             'event_id' => (string) Str::uuid(),
             'type' => $type,
             'applicant_ref' => $application->number,
-            'payload' => $type === 'applicant.upserted'
-                ? $this->applicantRecord($application)
-                : ['type' => $type, 'occurred_at' => now()->toIso8601String(), 'data' => $data],
+            'payload' => match ($type) {
+                'applicant.upserted' => $this->applicantRecord($application),
+                'packet.released', 'enrollment.admitted' => $data,
+                default => ['type' => $type, 'occurred_at' => now()->toIso8601ZuluString(), 'data' => $data],
+            },
             'status' => DmsOutboxEvent::PENDING,
         ]);
         DeliverDmsEvent::dispatch($event->id)->afterCommit();
 
         return $event;
+    }
+
+    /**
+     * Admitted (FR-10/11): release the verified admission documents stored in
+     * the DMS as an applicant packet (medical files never go there), and give
+     * the Enrollment System the applicant.
+     */
+    public function admitted(Application $application): void
+    {
+        $versions = $application->documents()
+            ->where('storage_driver', 'dms')->where('status', ApplicationDocument::VERIFIED)
+            ->whereHas('requirement', fn ($q) => $q->where('stage', Requirement::STAGE_ADMISSION))
+            ->pluck('storage_ref')->map(fn ($ref) => explode(':', $ref)[1] ?? null)->filter()->values()->all();
+        if ($versions) {   // the DMS refuses a release with no versions
+            $this->record('packet.released', $application, ['released' => true, 'admitted' => true, 'verified' => true, 'version_ids' => $versions]);
+        }
+        $this->record('enrollment.admitted', $application, app(AdmittedApplicantsService::class)->find($application->id));
     }
 
     /** The applicant's record as the DMS keeps it (§9.1). No credentials, no Restricted values. */
@@ -67,10 +92,9 @@ class DmsSync
             'applicant_type' => $p->applicant_type,
             'program_choices' => $application->choices->map(fn ($c) => ['rank' => $c->rank, 'code' => $c->program->code])->values()->all(),
             'offered_program' => $application->offeredProgram?->code,
-            'submitted_at' => $application->submitted_at?->toIso8601String(),
+            'submitted_at' => $application->submitted_at?->toIso8601ZuluString(),
             'admitted' => $application->admitted_at !== null,
-            'admitted_at' => $application->admitted_at?->toIso8601String(),
-            'student_number' => $application->student_number,
+            'admitted_at' => $application->admitted_at?->toIso8601ZuluString(),
         ];
     }
 

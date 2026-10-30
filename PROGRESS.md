@@ -9,7 +9,7 @@
 
 ## 👤 Accounts (live server)
 
-> ⚠ Real passwords on a public server: don't share this file outside the team. All staff accounts will come from the Employment System once it is connected ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) §1); until then these demo accounts are used. Disable one with `php artisan user:active <email> off`. The demo accounts (Admin, Clinic, Deans) are made or reset with `php artisan db:seed --class=DemoStaffAccountsSeeder --force`.
+> ⚠ Real passwords on a public server: don't share this file outside the team. Staff accounts are made by the Super Admin (Admin → Accounts, with the EMS employee no.) and disabled nightly when EMS says the employee left ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) §1); until EMS is connected these demo accounts are used. Disable one with `php artisan user:active <email> off`. The demo accounts (Admin, Clinic, Deans) are made or reset with `php artisan db:seed --class=DemoStaffAccountsSeeder --force`.
 
 | Role | Portal | Email | Password |
 |---|---|---|---|
@@ -77,6 +77,14 @@ The three portal links and every account are at the top of this file. HTTPS; the
 
 **Still to do:** GitHub Actions deploy secrets · least-privilege DB users (`app:db-privileges`) · email subject lines still say "PLP Online Admission" (hard-coded in `app/Notifications`).
 
+## 🔌 School Systems API Standard (2026-10-30, branch `api-v1-standard`)
+
+The ERP teams agreed on one API standard ([docs/API_Guide.md](docs/API_Guide.md)): Bearer tokens, `/api/v1`, `data`/`meta`, snake_case, UTC, `Idempotency-Key`. Changes made to follow it ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)):
+- **Inbound removed:** `/api/integrations/*`, X-API-Key, `api-client:create` and the `api_clients` table. No system calls the OAS any more.
+- **EMS (staff):** EMS has no Admission roles, so the Super Admin creates accounts with an optional EMS employee no. `ems:sync-staff` runs nightly and disables accounts whose employee is inactive or unknown in EMS.
+- **Enrollment:** each admitted applicant is POSTed as JSON (body in [docs/openapi.json](docs/openapi.json)), on `fake` until Enrollment gives us a URL and token. Student numbers are removed from the OAS (migration `2026_10_30_000100`). The "Registrar" export is now the **Admitted applicants** report (same fields).
+- **DMS:** the client follows the DMS `openapi.json`: `POST /history`, `POST /documents` (+`/versions`), `GET /files/{version}`, and an applicant packet on admission. Medical files stay local because the DMS refuses them. `.env`: `DMS_API_KEY` → `DMS_TOKEN`, and `DMS_BASE_URL` now ends in `/api/v1`.
+
 ## ✅ SDD check (2026-10-24, [SDD-PLP-Online-Admission-System.md](SDD-PLP-Online-Admission-System.md))
 
 The SDD's requirements (§3–5: FR-01…FR-31, NFR-01…NFR-16, D-01…D-06) were checked one by one against the system; the gaps were built on branch `sdd-v2-gaps` (merged into `backend`). Sections 6–13 of the SDD are still the template's fictional example (Northbridge Schools), so there was nothing PLP-specific to check there. Sizing and load targets (NFR-02, NFR-03; 2,000 concurrent users, 20,000 applicants) were left out as agreed. Integrations are built API-ready ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)). Tests: 111 passing (18 new in `SddRequirementsTest`); 116 after the role-based Admin portal (2026-10-24).
@@ -136,11 +144,11 @@ Legend: ✅ in the system · 🆕 added on 2026-10-24 · 🔌 built, switched of
 **Blocking features**
 1. ~~**H1 · Applicant document cards.**~~ Decided: Grade 12 Form 138 (`reportCard`) and Good Moral (`goodMoral`) are now official requirements (migration `2026_10_18_000100`). The portal builds its cards from the server's list per applicant (7 for Grade 12 students; SHS graduates get Form 137 instead of the two report cards; a guardian adds the affidavit), uploads to `/api/applicant/documents/{key}` and submits through `/api/applicant/submit`. No payment card: PLP is a public university, so there is no application or reservation fee (migration `2026_10_18_000300` retires the old payment requirement).
 2. **Offer acceptance deadline.** There is no reservation fee (public university); passers only accept the offer. What happens when a passer doesn't accept by a deadline (the diagram's "slot deadlines" job)? Free the slot, notify, change status? Nothing is automated until this is defined. The period's `reservation_deadline` column is no longer shown to applicants.
-3. **When is an applicant "Admitted" for Enrollment?** Built as: after medical clearance (admission complete). Confirm, or name another point (e.g. offer accepted, fee paid).
+3. ~~**When is an applicant "Admitted" for Enrollment?**~~ Decided (2026-10-30): only status `admitted` (after medical clearance).
 
 **Needed from other teams**
-4. **Enrollment and the student number (D12).** Per the updated paper the OAS never calls Enrollment: it marks applicants *Admitted* in the DMS, and Enrollment reads them there. Does Enrollment send the student number back? The callback (`POST /api/integrations/enrollment/student-number`) is built and off (`ENROLLMENT_CALLBACK_ENABLED=false`).
-5. **Document Management API contract.** The DMS driver is built (`DOCUMENT_STORE=dms`) on an assumed API. Needs the real contract and API key.
+4. **Enrollment System endpoint (⏳ waiting).** Decided (2026-10-30): Admission *gives* each admitted applicant to Enrollment as JSON, and student numbers are Enrollment's (removed from the OAS). Built and on `ENROLLMENT_DRIVER=fake`. Still needed from the Enrollment team: their URL, a Bearer token, and confirmation of the body in [docs/openapi.json](docs/openapi.json). Steps: [INTEGRATIONS.md §2](docs/INTEGRATIONS.md#2-enrollment-system-admitted-applicants-fr-11-fr-29).
+5. **DMS and EMS tokens.** Both clients are built to their published APIs (DMS `openapi.json`, EMS `/api/v1/employees`). We need a DMS connector token (source `OAS`) and an EMS token with `employees:read`.
 6. **The clinic's real medical requirement list.** The seeded one (medical certificate, chest X-ray, CBC/urinalysis) is a placeholder.
 
 **UI team (the backend is ready; the screens can't show it yet)**

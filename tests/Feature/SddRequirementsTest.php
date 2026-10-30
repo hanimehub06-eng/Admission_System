@@ -4,13 +4,17 @@ namespace Tests\Feature;
 
 use App\Enums\Role;
 use App\Models\AdmissionPeriod;
-use App\Models\ApiClient;
 use App\Models\Application;
+use App\Models\DmsOutboxEvent;
 use App\Models\Strand;
 use App\Models\User;
+use App\Services\Enrollment\FakeEnrollmentClient;
 use Database\Seeders\DemoStaffAccountsSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Sleep;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Tests\Concerns\BuildsApplications;
 use Tests\TestCase;
@@ -217,8 +221,8 @@ class SddRequirementsTest extends TestCase
         $this->asUser($this->officer())->patchJson('/api/admin/programs/BSIT', ['open' => false])->assertOk()->assertJsonPath('data.open', false);
     }
 
-    /** FR-27, FR-29: CSV export and the Registrar layout, by report and by API */
-    public function test_registrar_export(): void
+    /** FR-27, FR-29, FR-11: CSV export, and the admitted applicant given to the Enrollment System as JSON */
+    public function test_admitted_applicants_reach_enrollment(): void
     {
         $number = $this->number($this->admitted());
 
@@ -226,55 +230,53 @@ class SddRequirementsTest extends TestCase
         $this->assertStringContainsString('text/csv', $csv->headers->get('Content-Type'));
         $this->assertStringContainsString($number, $csv->getContent());
 
-        Artisan::call('api-client:create', ['name' => 'registrar']);
-        preg_match('/X-API-Key: (\S+)/', Artisan::output(), $m);
-        $this->getJson('/api/integrations/registrar/admitted', ['X-API-Key' => $m[1]])->assertOk()
-            ->assertJsonPath('data.0.applicationNumber', $number)
-            ->assertJsonPath('data.0.programCode', 'BSIT')
-            ->assertJsonMissingPath('data.0.score');
+        $sent = array_map(fn ($l) => json_decode($l, true), array_filter(explode("\n", Storage::disk('local')->get(FakeEnrollmentClient::FILE))));
+        $this->assertCount(1, $sent);
+        $applicant = $sent[0]['body'];
+        $this->assertSame($number, $applicant['reference_number']);
+        $this->assertSame('BSIT', $applicant['program']['code']);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/', $applicant['admitted_at']);   // UTC
+        $this->assertArrayNotHasKey('score', $applicant);
+        $this->assertSame(DmsOutboxEvent::where('type', 'enrollment.admitted')->value('event_id'), $sent[0]['idempotency_key']);
     }
 
-    /** FR-30: staff accounts come from the Employment System */
-    public function test_employment_system_provisions_staff(): void
+    /** FR-30: staff accounts linked to EMS are disabled when the employee is inactive or gone */
+    public function test_ems_sync_disables_departed_staff(): void
     {
-        Artisan::call('api-client:create', ['name' => 'employment']);
-        preg_match('/X-API-Key: (\S+)/', Artisan::output(), $m);
-        $key = ['X-API-Key' => $m[1]];
-        $employee = ['employeeId' => 'E-1001', 'name' => 'Rosa Dizon', 'email' => 'Rosa.Dizon@plpasig.edu.ph', 'role' => 'admission'];
+        $super = $this->makeUser(Role::SuperAdmin);
+        $this->asUser($super)->postJson('/api/admin/accounts', ['name' => 'Rosa Dizon', 'email' => 'rosa@plpasig.edu.ph', 'role' => 'admission', 'employee_no' => 'E-1'])
+            ->assertUnprocessable()->assertJsonValidationErrors('employee_no');
+        foreach (['rosa' => '26-00001', 'ben' => '26-00002', 'cora' => '26-00003'] as $name => $no) {
+            $this->asUser($super)->postJson('/api/admin/accounts', ['name' => ucfirst($name), 'email' => "{$name}@plpasig.edu.ph", 'role' => 'admission', 'employee_no' => $no])->assertCreated();
+        }
 
-        $this->postJson('/api/integrations/employment/employees', ['employees' => [$employee]])->assertUnauthorized();
-        $this->postJson('/api/integrations/employment/employees', ['employees' => [$employee]], $key)->assertOk()->assertJsonPath('data.0.status', 'created');
-        $this->postJson('/api/integrations/employment/employees', ['employees' => [$employee]], $key)->assertOk()->assertJsonPath('data.0.status', 'unchanged');
+        $this->artisan('ems:sync-staff')->expectsOutputToContain('EMS is not connected')->assertSuccessful();
 
-        $user = User::where('employee_id', 'E-1001')->firstOrFail();
-        $this->assertSame('rosa.dizon@plpasig.edu.ph', $user->email);
-        $this->assertTrue($user->hasRole('admission'));
+        config(['admission.ems.base_url' => 'https://ems.test/api/v1', 'admission.ems.token' => 't-ems']);
+        Http::fake([
+            'ems.test/api/v1/employees/26-00001' => Http::response(['data' => ['employee_no' => '26-00001', 'full_name' => 'Rosa Dizon', 'status' => 'active']]),
+            'ems.test/api/v1/employees/26-00002' => Http::response(['data' => ['employee_no' => '26-00002', 'full_name' => 'Ben', 'status' => 'inactive']]),
+            'ems.test/api/v1/employees/26-00003' => Http::response(['message' => 'Not found.'], 404),
+        ]);
+        $this->artisan('ems:sync-staff')->expectsOutputToContain('2 disabled, 1 renamed')->assertSuccessful();
 
-        $this->postJson('/api/integrations/employment/employees', ['employees' => [['role' => 'admission_head'] + $employee]], $key)
-            ->assertOk()->assertJsonPath('data.0.status', 'updated');
-        $this->assertTrue($user->fresh()->hasRole('admission_head'));
-        $this->assertDatabaseHas('audit_logs', ['action' => 'account.role_changed', 'actor_name' => 'API · employment']);
-
-        // Never an applicant's or the sysadmin's account
-        $this->makeApplicant(false, 'kid@example.com');
-        $this->postJson('/api/integrations/employment/employees', ['employees' => [['employeeId' => 'E-2', 'email' => 'kid@example.com'] + $employee]], $key)
-            ->assertUnprocessable()->assertJsonPath('data.0.status', 'rejected');
-        $this->postJson('/api/integrations/employment/employees', ['employees' => [['role' => 'sysadmin'] + $employee]], $key)->assertUnprocessable();
-
-        $this->deleteJson('/api/integrations/employment/employees/E-1001', [], $key)->assertOk()->assertJsonPath('data.active', false);
-        $this->asUser($user->fresh())->getJson('/api/admin/state')->assertForbidden();
+        $active = User::whereNotNull('employee_id')->orderBy('employee_id')->pluck('is_active', 'employee_id')->map(fn ($v) => (bool) $v)->all();
+        $this->assertSame(['26-00001' => true, '26-00002' => false, '26-00003' => false], $active);
+        $this->assertSame('Rosa Dizon', User::where('employee_id', '26-00001')->value('name'));
+        $this->assertDatabaseHas('audit_logs', ['action' => 'account.disabled', 'actor_name' => 'API · ems']);
+        Http::assertSent(fn ($r) => $r->hasHeader('Authorization', 'Bearer t-ems'));
     }
 
-    /** NFR-05: integration keys expire after 90 days */
-    public function test_api_keys_expire(): void
+    /** An EMS outage never disables anyone */
+    public function test_ems_outage_disables_no_one(): void
     {
-        Artisan::call('api-client:create', ['name' => 'registrar']);
-        preg_match('/X-API-Key: (\S+)/', Artisan::output(), $m);
-        $this->assertTrue(ApiClient::where('name', 'registrar')->first()->expires_at->between(now()->addDays(89), now()->addDays(91)));
+        $this->asUser($this->makeUser(Role::SuperAdmin))->postJson('/api/admin/accounts', ['name' => 'Rosa', 'email' => 'rosa@plpasig.edu.ph', 'role' => 'admission', 'employee_no' => '26-00001'])->assertCreated();
+        config(['admission.ems.base_url' => 'https://ems.test/api/v1']);
+        Http::fake(['ems.test/*' => Http::response(['message' => 'Down'], 503)]);
+        Sleep::fake();
 
-        $this->travel(91)->days();
-        $this->getJson('/api/integrations/registrar/admitted', ['X-API-Key' => $m[1]])->assertUnauthorized()
-            ->assertJsonPath('message', 'This API key has expired. Ask the system administrator for a new one.');
+        $this->artisan('ems:sync-staff')->assertFailed();
+        $this->assertTrue((bool) User::where('employee_id', '26-00001')->value('is_active'));
     }
 
     /** NFR-08: files of applicants not admitted go 12 months after the period closes */

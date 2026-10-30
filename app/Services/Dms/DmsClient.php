@@ -3,18 +3,17 @@
 namespace App\Services\Dms;
 
 /**
- * Record sync with the Document Management System (paper §9.3, INT-01).
- * The DMS is the system of record; MySQL here is the working copy. The API
- * is "to be agreed with the DMS team", so callers only use this interface:
- * `fake` (local files) until the contract exists, then `http`.
+ * Record sync with the Document Management System (INT-01), following the
+ * DMS openapi.json (School Systems API Standard, docs/API_Guide.md).
+ * `fake` (local files) until the DMS token exists, then `http`.
  *
  * Never send passwords, 2FA secrets or tokens (§8.3).
  */
 interface DmsClient
 {
-    /** PUT /applicants/{ref}: the applicant's current record. */
-    public function putApplicant(string $ref, array $record, string $idempotencyKey): void;
+    /** POST /history: one record change (event_id, record_type, record_id, revision, operation, payload). */
+    public function postHistory(array $entry, string $idempotencyKey): void;
 
-    /** POST /applicants/{ref}/events: one change (status, document, result, admitted…). */
-    public function postEvent(string $ref, array $event, string $idempotencyKey): void;
+    /** POST /applicant-packets: the exact document versions released for Enrollment. */
+    public function postPacket(array $packet, string $idempotencyKey): void;
 }

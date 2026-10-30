@@ -4,7 +4,6 @@ use App\Exceptions\BusinessRuleException;
 use App\Http\Middleware\EnsureTwoFactor;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\SecurityHeaders;
-use App\Http\Middleware\VerifyIntegrationKey;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -24,7 +23,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'active' => EnsureUserIsActive::class,
             'two_factor' => EnsureTwoFactor::class,
-            'integration' => VerifyIntegrationKey::class,
         ]);
         $middleware->throttleApi('api');
         $middleware->append(SecurityHeaders::class);

@@ -68,15 +68,6 @@ class SysadminToolsTest extends TestCase
         Storage::disk('offsite')->assertExists('oas-backups/'.basename($zips[0]));
     }
 
-    public function test_api_client_command_stores_only_a_hash(): void
-    {
-        $this->artisan('api-client:create', ['name' => 'enrollment', '--ips' => '10.0.0.5, 10.0.0.6'])
-            ->expectsOutputToContain('X-API-Key:')->assertSuccessful();
-        $client = \App\Models\ApiClient::where('name', 'enrollment')->first();
-        $this->assertSame(['10.0.0.5', '10.0.0.6'], $client->allowed_ips);
-        $this->assertSame(64, strlen($client->key_hash));
-    }
-
     public function test_privileges_command(): void
     {
         if (\DB::getDriverName() === 'mysql') {

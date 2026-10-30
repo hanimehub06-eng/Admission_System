@@ -1,0 +1,105 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PLP Online Admission System (OAS): system-to-system API",
+    "version": "1.0.0",
+    "description": "Follows the School Systems API Standard (docs/API_Guide.md). No other system calls the OAS: it pulls staff status from EMS, and sends records to the DMS and admitted applicants to the Enrollment System. This file defines the JSON the OAS sends to the Enrollment System (under `webhooks`), so Enrollment can build its endpoint against it. Official ID: `reference_number` (the application number, e.g. AD-2026-00001), owned by Admission."
+  },
+  "paths": {},
+  "webhooks": {
+    "admitted-applicant": {
+      "post": {
+        "summary": "OAS → Enrollment: one applicant who is officially admitted to a program",
+        "description": "Sent once per applicant when the clinic clears their medical requirements (status `admitted`), as `POST {ENROLLMENT_URL}` (proposed: `https://<enrollment-host>/api/v1/admitted-applicants`). Retried on network errors, 429 and 5xx with the same `Idempotency-Key`, so the same key with the same body must return the original response. Exam scores and interview grades are never sent. The applicant's documents are released to Enrollment through the DMS (`GET /api/v1/applicant-packets/{packet}` on the DMS), not in this body. Enrollment issues the student number; the OAS does not need it back.",
+        "security": [{ "bearer": [] }],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "UUID, the same on every retry of this applicant's hand-off.",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AdmittedApplicant" },
+              "example": {
+                "reference_number": "AD-2026-00001",
+                "lrn": "123456789012",
+                "last_name": "Mendoza",
+                "first_name": "Jordan",
+                "middle_name": "Reyes",
+                "sex": "Male",
+                "birthday": "2008-03-14",
+                "email": "jordan@example.com",
+                "phone": "+63 917 123 4567",
+                "address": "12 Mabini St.",
+                "is_pasig_resident": true,
+                "district": 1,
+                "barangay": "Kapitolyo",
+                "last_school": "Rizal High School",
+                "school_type": "Public",
+                "strand": "STEM",
+                "program": { "code": "BSIT", "name": "BS Information Technology" },
+                "college": { "code": "CCS", "name": "College of Computer Studies" },
+                "admitted_at": "2027-03-10T02:15:00Z"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Received." },
+          "200": { "description": "Same Idempotency-Key and body as before: the original response." },
+          "401": { "description": "Missing or revoked token (with `WWW-Authenticate: Bearer`)." },
+          "409": { "description": "Same Idempotency-Key, different body." },
+          "422": { "description": "`{ message, errors }`. The OAS keeps the hand-off as failed for staff to retry (`php artisan dms:outbox --retry`)." }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Token the Enrollment System issues to the OAS (stored in the OAS as ENROLLMENT_TOKEN)."
+      }
+    },
+    "schemas": {
+      "Ref": {
+        "type": "object",
+        "required": ["code", "name"],
+        "properties": { "code": { "type": "string" }, "name": { "type": "string" } }
+      },
+      "AdmittedApplicant": {
+        "type": "object",
+        "description": "Every field is always present; missing values are null. Callers ignore unknown fields (new ones may be added).",
+        "required": ["reference_number", "last_name", "first_name", "email", "program", "admitted_at"],
+        "properties": {
+          "reference_number": { "type": "string", "description": "Official applicant ID (Admission).", "example": "AD-2026-00001" },
+          "lrn": { "type": ["string", "null"], "description": "DepEd Learner Reference Number." },
+          "last_name": { "type": "string" },
+          "first_name": { "type": "string" },
+          "middle_name": { "type": ["string", "null"] },
+          "sex": { "type": ["string", "null"] },
+          "birthday": { "type": ["string", "null"], "format": "date" },
+          "email": { "type": "string", "format": "email" },
+          "phone": { "type": ["string", "null"] },
+          "address": { "type": ["string", "null"] },
+          "is_pasig_resident": { "type": ["boolean", "null"] },
+          "district": { "type": ["integer", "null"] },
+          "barangay": { "type": ["string", "null"] },
+          "last_school": { "type": ["string", "null"] },
+          "school_type": { "type": ["string", "null"] },
+          "strand": { "type": ["string", "null"], "description": "Senior high school strand." },
+          "program": { "$ref": "#/components/schemas/Ref", "description": "The program the applicant is admitted to." },
+          "college": { "oneOf": [{ "$ref": "#/components/schemas/Ref" }, { "type": "null" }] },
+          "admitted_at": { "type": "string", "format": "date-time", "description": "UTC." }
+        }
+      }
+    }
+  }
+}

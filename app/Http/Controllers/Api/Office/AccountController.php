@@ -24,7 +24,7 @@ class AccountController extends Controller
             ->with('deanOf')->orderBy('name')->get();
 
         return response()->json(['data' => $users->map(fn (User $u) => [
-            'id' => $u->id, 'name' => $u->name, 'email' => $u->email,
+            'id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'employee_no' => $u->employee_id,
             'role' => $u->primaryRole()?->value, 'role_label' => $u->primaryRole()?->label(),
             'college' => $u->deanOf?->code, 'active' => (bool) $u->is_active,
             'last_login_at' => $u->last_login_at?->toIso8601String(),
@@ -37,12 +37,17 @@ class AccountController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'email' => ['required', 'email', 'max:190', Rule::unique('users', 'email')],
+            // EMS's official ID: links the account for the nightly ems:sync-staff check
+            'employee_no' => ['nullable', 'regex:/^\d{2}-\d{5}$/', Rule::unique('users', 'employee_id')],
             'role' => ['required', Rule::in($roles)],
             'college' => ['required_if:role,college_dean', 'nullable', 'string', Rule::exists('colleges', 'code')],
         ]);
 
         $password = Str::password(16);
         $user = User::create(['name' => $data['name'], 'email' => $data['email'], 'password' => $password]);
+        if ($data['employee_no'] ?? null) {
+            $user->forceFill(['employee_id' => $data['employee_no'], 'source' => 'ems'])->save();
+        }
         $user->assignRole($data['role']);
         if ($data['role'] === Role::CollegeDean->value) {
             College::where('code', strtoupper($data['college']))->update(['dean_user_id' => $user->id]);

@@ -7,6 +7,9 @@ use App\Listeners\SendAdmissionNotices;
 use App\Services\Dms\DmsClient;
 use App\Services\Dms\FakeDmsClient;
 use App\Services\Dms\HttpDmsClient;
+use App\Services\Enrollment\EnrollmentClient;
+use App\Services\Enrollment\FakeEnrollmentClient;
+use App\Services\Enrollment\HttpEnrollmentClient;
 use App\Services\Security\ClamAvScanner;
 use App\Services\Security\MalwareScanner;
 use App\Services\Security\NullMalwareScanner;
@@ -25,11 +28,18 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // INT-01: fake until the DMS team publishes the API (plan §0.6)
+        // INT-01: fake until the DMS token is issued (plan §0.6)
         $this->app->singleton(DmsClient::class, fn () => match (config('admission.dms.driver')) {
             'fake' => new FakeDmsClient(config('admission.documents.local_disk')),
-            'http' => new HttpDmsClient((string) config('admission.dms.base_url'), (string) config('admission.dms.api_key'), (int) config('admission.dms.timeout')),
+            'http' => new HttpDmsClient((string) config('admission.dms.base_url'), (string) config('admission.dms.token'), (int) config('admission.dms.timeout')),
             default => throw new InvalidArgumentException('DMS_DRIVER must be fake or http.'),
+        });
+
+        // FR-11: fake until the Enrollment System publishes its endpoint
+        $this->app->singleton(EnrollmentClient::class, fn () => match (config('admission.enrollment.driver')) {
+            'fake' => new FakeEnrollmentClient(config('admission.documents.local_disk')),
+            'http' => new HttpEnrollmentClient((string) config('admission.enrollment.url'), (string) config('admission.enrollment.token'), (int) config('admission.enrollment.timeout')),
+            default => throw new InvalidArgumentException('ENROLLMENT_DRIVER must be fake or http.'),
         });
 
         $this->app->singleton(MalwareScanner::class, fn () => match (config('admission.scanner.driver')) {

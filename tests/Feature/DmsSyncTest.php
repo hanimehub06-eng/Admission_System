@@ -5,8 +5,11 @@ namespace Tests\Feature;
 use App\Jobs\DeliverDmsEvent;
 use App\Models\DmsOutboxEvent;
 use App\Services\Dms\DmsClient;
+use App\Services\Dms\DmsSync;
 use App\Services\Dms\FakeDmsClient;
 use App\Services\Dms\HttpDmsClient;
+use App\Services\Enrollment\EnrollmentClient;
+use App\Services\Enrollment\HttpEnrollmentClient;
 use Illuminate\Http\Client\Request as HttpRequest;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
@@ -50,21 +53,39 @@ class DmsSyncTest extends TestCase
         $before = count(app(DmsClient::class)->received($event->applicant_ref));
 
         $event->update(['status' => DmsOutboxEvent::PENDING]);
-        (new DeliverDmsEvent($event->id))->handle(app(DmsClient::class));
+        (new DeliverDmsEvent($event->id))->handle(app(DmsClient::class), app(EnrollmentClient::class));
 
         $this->assertCount($before, app(DmsClient::class)->received($event->applicant_ref));
+    }
+
+    /** FR-10/11: on admission the verified DMS versions are released as a packet; medical files never */
+    public function test_admission_releases_an_applicant_packet(): void
+    {
+        $application = $this->app_($this->admitted());
+        $this->assertSame(0, DmsOutboxEvent::where('type', 'packet.released')->count());   // nothing in the DMS: no release
+
+        $application->documents()->get()->each(fn ($d, $i) => $d->update(['storage_driver' => 'dms', 'storage_ref' => "doc-{$i}:ver-{$i}"]));
+        app(DmsSync::class)->admitted($application);
+
+        $admission = $application->documents()->whereHas('requirement', fn ($q) => $q->where('stage', 'admission'))->where('status', 'verified')->count();
+        $packet = collect(app(DmsClient::class)->received($application->number))->firstWhere('call', 'POST /applicant-packets')['body'];
+        $this->assertSame($application->number, $packet['applicant_id']);
+        $this->assertTrue($packet['released'] && $packet['admitted'] && $packet['verified']);
+        $this->assertCount($admission, $packet['version_ids']);
+        $this->assertGreaterThan(0, $admission);
+        $this->assertLessThan($application->documents()->count(), $admission);   // medical files left out
     }
 
     public function test_dms_outage_never_blocks_staff_work(): void
     {
         $this->app->instance(DmsClient::class, new class implements DmsClient
         {
-            public function putApplicant(string $ref, array $record, string $idempotencyKey): void
+            public function postHistory(array $entry, string $idempotencyKey): void
             {
                 throw new RuntimeException('DMS down');
             }
 
-            public function postEvent(string $ref, array $event, string $idempotencyKey): void
+            public function postPacket(array $packet, string $idempotencyKey): void
             {
                 throw new RuntimeException('DMS down');
             }
@@ -79,7 +100,7 @@ class DmsSyncTest extends TestCase
         $event = DmsOutboxEvent::first();
         $job = new DeliverDmsEvent($event->id);
         try {
-            $job->handle(app(DmsClient::class));
+            $job->handle(app(DmsClient::class), app(EnrollmentClient::class));
         } catch (RuntimeException) {
             $job->failed(new RuntimeException('DMS down'));
         }
@@ -92,18 +113,20 @@ class DmsSyncTest extends TestCase
         $this->assertSame(DmsOutboxEvent::SENT, $event->fresh()->status);
     }
 
-    public function test_http_driver_sends_the_key_and_idempotency_key(): void
+    public function test_http_drivers_send_bearer_and_idempotency_key(): void
     {
-        Http::fake(['dms.test/*' => Http::response(['ok' => true])]);
-        $client = new HttpDmsClient('https://dms.test/api', 'k-1', 5);
+        Http::fake(['dms.test/*' => Http::response(['history_id' => 1], 201), 'enrollment.test/*' => Http::response([], 201)]);
+        $dms = new HttpDmsClient('https://dms.test/api/v1', 't-1', 5);
 
-        $client->putApplicant('AD-2026-00001', ['a' => 1], 'evt-1');
-        $client->postEvent('AD-2026-00001', ['type' => 'status.changed'], 'evt-2');
+        $dms->postHistory(['event_id' => 'evt-1', 'record_type' => 'applicant', 'record_id' => 'AD-2026-00001', 'revision' => 1, 'operation' => 'upsert', 'payload' => []], 'evt-1');
+        $dms->postPacket(['event_id' => 'evt-2', 'applicant_id' => 'AD-2026-00001'], 'evt-2');
+        (new HttpEnrollmentClient('https://enrollment.test/api/v1/admitted-applicants', 't-2', 5))->sendAdmitted(['reference_number' => 'AD-2026-00001'], 'evt-3');
 
-        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'PUT' && $r->url() === 'https://dms.test/api/applicants/AD-2026-00001'
-            && $r->hasHeader('X-API-Key', 'k-1') && $r->hasHeader('Idempotency-Key', 'evt-1'));
-        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'POST' && str_ends_with($r->url(), '/applicants/AD-2026-00001/events')
-            && $r->hasHeader('Idempotency-Key', 'evt-2'));
+        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'POST' && $r->url() === 'https://dms.test/api/v1/history'
+            && $r->hasHeader('Authorization', 'Bearer t-1') && $r->hasHeader('Idempotency-Key', 'evt-1'));
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'https://dms.test/api/v1/applicant-packets' && $r->hasHeader('Idempotency-Key', 'evt-2'));
+        Http::assertSent(fn (HttpRequest $r) => $r->url() === 'https://enrollment.test/api/v1/admitted-applicants'
+            && $r->hasHeader('Authorization', 'Bearer t-2') && $r->hasHeader('Idempotency-Key', 'evt-3') && $r['reference_number'] === 'AD-2026-00001');
     }
 
     public function test_resync_command(): void

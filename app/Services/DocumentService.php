@@ -327,8 +327,8 @@ class DocumentService
     }
 
     /**
-     * All required medical items verified → Admitted (FR-10), which the DMS
-     * records for Enrollment (FR-11, D12). A flagged file blocks clearance.
+     * All required medical items verified → Admitted (FR-10): recorded in
+     * the DMS and given to the Enrollment System (FR-11). A flagged file blocks clearance.
      */
     private function afterMedicalReview(Application $application, User $staff): void
     {
@@ -344,10 +344,11 @@ class DocumentService
         $this->audit->record('medical.cleared', 'Medically cleared · admission complete', $application, $application);
         $this->dms->record('admission.completed', $application, [
             'admitted' => true,
-            'admitted_at' => $application->admitted_at->toIso8601String(),
+            'admitted_at' => $application->admitted_at->toIso8601ZuluString(),
             'program' => $application->offeredProgram?->code,
         ]);
         $this->dms->record('applicant.upserted', $application);
+        $this->dms->admitted($application);
         ApplicantAdmitted::dispatch($application);
     }
 

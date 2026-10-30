@@ -27,7 +27,7 @@ class ReportService
 {
     private const OFFICE = ['admission', 'admission_head', 'read_only'];
 
-    /** report key => [title, roles allowed] (FR-27; FR-29 Registrar export) */
+    /** report key => [title, roles allowed] (FR-27; FR-29 admitted applicants) */
     public const REPORTS = [
         'applicants-per-program' => ['Applicants per program', self::OFFICE],
         'status-breakdown' => ['Applications by status', self::OFFICE],
@@ -36,7 +36,7 @@ class ReportService
         'pass-rate' => ['Exam pass rate per program', self::OFFICE],
         'daily-submissions' => ['Daily submissions', self::OFFICE],
         'possible-duplicates' => ['Possible duplicate applicants', ['admission', 'admission_head']],
-        'admitted-applicants' => ['Admitted applicants (Registrar)', self::OFFICE],
+        'admitted-applicants' => ['Admitted applicants', self::OFFICE],
         'medical-completion' => ['Medical completion', ['clinic', 'admission', 'admission_head']],
         'interviews' => ['Interviews', ['college_dean', 'admission', 'admission_head', 'read_only']],
     ];
@@ -129,10 +129,10 @@ class ReportService
         ];
     }
 
-    /** FR-29: the Registrar's layout. */
+    /** FR-29: the same fields the Enrollment System receives. */
     private function admittedApplicants(int $periodId): array
     {
-        return app(RegistrarExportService::class)->report();
+        return app(AdmittedApplicantsService::class)->report();
     }
 
     private function statusBreakdown(int $periodId): array

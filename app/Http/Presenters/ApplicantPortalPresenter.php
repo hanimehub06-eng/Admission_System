@@ -52,7 +52,6 @@ class ApplicantPortalPresenter
             'accepted' => $application->status->holdsSlot(),
             'offer' => $this->offer($application),
             'interviews' => $this->interviews($application),
-            'studentNumber' => $application->student_number,
             // The document cards this applicant must fill (H1: one card per official
             // requirement that applies to them), and what they uploaded, by key.
             'requirements' => $this->applications->requiredDocuments($application)

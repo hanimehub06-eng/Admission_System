@@ -18,6 +18,10 @@ class DocumentStorage
     public function store(UploadedFile $file, Application $application, Requirement $requirement, ?ApplicationDocument $previous = null): StoredFile
     {
         $driver = config('admission.documents.driver');
+        // The DMS refuses medical files ("separately agreed access rules"), so they stay here
+        if ($requirement->stage === Requirement::STAGE_MEDICAL) {
+            $driver = 'local';
+        }
         $previousRef = $previous?->storage_driver === $driver ? $previous->storage_ref : null;
 
         return $this->driver($driver)->put($file, $application, $requirement, $previousRef);
@@ -35,7 +39,7 @@ class DocumentStorage
             'local' => new LocalDocumentStore(config('admission.documents.local_disk')),
             'dms' => new DmsDocumentStore(
                 (string) config('admission.dms.base_url'),
-                (string) config('admission.dms.api_key'),
+                (string) config('admission.dms.token'),
                 (int) config('admission.dms.timeout'),
             ),
             default => throw new InvalidArgumentException("Unknown document store [{$name}]."),

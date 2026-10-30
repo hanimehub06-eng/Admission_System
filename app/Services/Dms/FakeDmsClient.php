@@ -13,14 +13,14 @@ class FakeDmsClient implements DmsClient
 {
     public function __construct(private string $disk) {}
 
-    public function putApplicant(string $ref, array $record, string $idempotencyKey): void
+    public function postHistory(array $entry, string $idempotencyKey): void
     {
-        $this->write($ref, 'PUT /applicants/'.$ref, $record, $idempotencyKey);
+        $this->write($entry['record_id'], 'POST /history', $entry, $idempotencyKey);
     }
 
-    public function postEvent(string $ref, array $event, string $idempotencyKey): void
+    public function postPacket(array $packet, string $idempotencyKey): void
     {
-        $this->write($ref, 'POST /applicants/'.$ref.'/events', $event, $idempotencyKey);
+        $this->write($packet['applicant_id'], 'POST /applicant-packets', $packet, $idempotencyKey);
     }
 
     /** Everything the fake DMS received for an applicant (tests, `dms:outbox`). */

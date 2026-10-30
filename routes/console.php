@@ -16,6 +16,8 @@ Schedule::command('admission:deadlines --only=exam-reminders')->dailyAt('08:00')
 
 // INT-01: anything the DMS didn't take yet goes again
 Schedule::command('dms:outbox --retry')->hourly()->withoutOverlapping();
+// FR-30: staff whose employee left (EMS) are disabled overnight
+Schedule::command('ems:sync-staff')->dailyAt('01:30')->timezone('Asia/Manila')->withoutOverlapping();
 
 // NFR-06: nightly encrypted backup
 Schedule::command('app:backup')->dailyAt('02:00')->timezone('Asia/Manila')->withoutOverlapping();

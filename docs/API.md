@@ -5,12 +5,12 @@ JSON API under `/api`, used by the existing applicant portal and admission offic
 ## Conventions
 
 - **Auth:** `Authorization: Bearer <JWT>` from `POST /api/auth/login`. Access tokens last **15 minutes** (NFR-04); `POST /api/auth/refresh` swaps a token for a new one, even just after it expired (within `JWT_REFRESH_TTL`, 24 h), and revokes the old one (rotation). The portals do this silently on a `401`. A disabled account is refused on its next request. **5 failed sign-ins lock the account for 15 minutes** (FR-02).
-- **Roles (SDD FR-30):** `applicant`, `admission` (Admission Staff), `admission_head` (the **Admin**: the whole system; also releases results and sets the admission dates), `proctor` (exam day), `read_only` (deans, registrar, DPO: view and reports), `college_dean` (interviews, own college), `clinic` (Medical), `sysadmin`. Staff accounts will come from the Employment System ([INTEGRATIONS.md](INTEGRATIONS.md)). The sysadmin works through artisan commands, Pulse and Log Viewer ([RUNBOOK.md](RUNBOOK.md)), not this API.
+- **Roles (SDD FR-30):** `applicant`, `admission` (Admission Staff), `admission_head` (the **Admin**: the whole system; also releases results and sets the admission dates), `proctor` (exam day), `read_only` (deans, registrar, DPO: view and reports), `college_dean` (interviews, own college), `clinic` (Medical), `sysadmin`. Staff accounts are made by the Super Admin (Admin → Accounts) and checked nightly against EMS ([INTEGRATIONS.md](INTEGRATIONS.md)). The sysadmin works through artisan commands, Pulse and Log Viewer ([RUNBOOK.md](RUNBOOK.md)), not this API.
 - **2FA** (column below): staff routes also require a completed two-factor sign-in when `STAFF_2FA_REQUIRED=true`.
 - **Applications** are addressed by their number (`AD-2026-00001`); documents and medical items by their requirement key (`birthCert`, `xray`, …).
 - **Responses:** `{ "data": … }`. Validation errors: `422` with `{ "message", "errors": { field: [messages] } }`. Refused by a business rule (e.g. exam session full): `422` with `message`. Wrong role or not your record: `403`.
 - **Never in applicant responses:** exam scores and interview grades (Restricted). Only the released result (Passed / Did Not Pass) and the interview outcome are shown; tests assert this on every applicant endpoint.
-- **Rate limits:** `login` (sign-in, 2FA, password reset, offer acceptance), `register`, `uploads` (file uploads), `api` (integrations).
+- **Rate limits:** `login` (sign-in, 2FA, password reset, offer acceptance), `register`, `uploads` (file uploads), `api` (general API calls).
 
 ## Sign-in and account
 
@@ -102,21 +102,13 @@ JSON API under `/api`, used by the existing applicant portal and admission offic
 |---|---|
 | `applicants-per-program` (1st/2nd/3rd choice), `status-breakdown`, `document-completion`, `pass-rate`, `daily-submissions` | office, read_only |
 | `exam-attendance` | office, read_only, proctor |
-| `admitted-applicants` (Registrar layout, FR-29) | office, read_only |
+| `admitted-applicants` (same fields Enrollment receives, FR-29) | office, read_only |
 | `possible-duplicates` (FR-25) | office |
 | `medical-completion` | clinic, office |
 | `interviews` | college_dean (own college), office, read_only |
 
 ## Other systems
 
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| POST | `/api/integrations/enrollment/student-number` | `X-API-Key` (`api-client:create enrollment`) + IP allowlist | Student-number callback, off unless enabled (D12) |
-| GET / POST | `/api/integrations/employment/employees` | `X-API-Key` (`employment`) | Staff accounts from the Employment System (FR-30) |
-| DELETE | `/api/integrations/employment/employees/{employeeId}` | `X-API-Key` (`employment`) | Disable a staff account |
-| GET | `/api/integrations/registrar/admitted?since=&page=` | `X-API-Key` (`registrar`) | Admitted applicants, Registrar layout (FR-29) |
-| GET | `/up` | none | Health check |
+No other system calls the OAS (School Systems API Standard, [API_Guide.md](API_Guide.md)). The only public endpoint besides this API is `GET /up` (health check, no auth).
 
-API keys expire after 90 days (NFR-05): run `api-client:create <name>` again to rotate. Request and response details: [INTEGRATIONS.md](INTEGRATIONS.md).
-
-The OAS's own calls **to** the DMS (`PUT /applicants/{ref}`, `POST /applicants/{ref}/events`, `POST /documents`, …) are described in [INTEGRATIONS.md](INTEGRATIONS.md#4-document-management-system-dms) and switch on with `DMS_DRIVER=http`.
+The OAS's own calls **out**, all Bearer-token, `/api/v1` and JSON, are described in [INTEGRATIONS.md](INTEGRATIONS.md): it pulls staff status from EMS (`GET /employees/{employee_no}`), sends record changes, files and applicant packets to the DMS (`POST /history`, `/documents`, `/applicant-packets`), and sends each admitted applicant to the Enrollment System (body in [openapi.json](openapi.json)).

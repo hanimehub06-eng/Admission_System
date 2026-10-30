@@ -24,12 +24,13 @@ return [
     /*
     | Document Management System (paper §9, INT-01). Record sync goes
     | through the dms_outbox table: "fake" writes to
-    | storage/app/private/dms-fake until the DMS API exists, "http" calls it.
+    | storage/app/private/dms-fake until the DMS token is issued, "http"
+    | calls it. DMS_BASE_URL ends in /api/v1.
     */
     'dms' => [
         'driver' => env('DMS_DRIVER', 'fake'),
         'base_url' => env('DMS_BASE_URL'),
-        'api_key' => env('DMS_API_KEY'),
+        'token' => env('DMS_TOKEN'),
         'timeout' => (int) env('DMS_TIMEOUT', 20),
     ],
 
@@ -43,13 +44,26 @@ return [
     ],
 
     /*
-    | Enrollment (decision D12): it reads admitted applicants from the DMS,
-    | so the OAS never calls it. If the team confirms that Enrollment sends
-    | the student number back, switch the callback on; the caller
-    | authenticates as the "enrollment" API client (api-client:create).
+    | Enrollment System (FR-11): each admitted applicant is POSTed to it as
+    | JSON through the outbox (docs/openapi.json). "fake" writes to
+    | storage/app/private/enrollment-fake.jsonl until their endpoint exists.
     */
     'enrollment' => [
-        'callback_enabled' => (bool) env('ENROLLMENT_CALLBACK_ENABLED', false),
+        'driver' => env('ENROLLMENT_DRIVER', 'fake'),
+        'url' => env('ENROLLMENT_URL'),
+        'token' => env('ENROLLMENT_TOKEN'),
+        'timeout' => (int) env('ENROLLMENT_TIMEOUT', 20),
+    ],
+
+    /*
+    | Employee Management System (FR-30): staff accounts linked by
+    | employee_no are checked nightly (ems:sync-staff). Off while
+    | EMS_BASE_URL is empty. EMS_BASE_URL ends in /api/v1.
+    */
+    'ems' => [
+        'base_url' => env('EMS_BASE_URL'),
+        'token' => env('EMS_TOKEN'),
+        'timeout' => (int) env('EMS_TIMEOUT', 20),
     ],
 
     /*
@@ -144,9 +158,6 @@ return [
         'key' => env('SMS_API_KEY'),
         'sender' => env('SMS_SENDER', 'PLP'),
     ],
-
-    // NFR-05: system-to-system API keys expire and must be rotated
-    'api_key_days' => (int) env('API_KEY_DAYS', 90),
 
     /*
     | NFR-08: documents of applicants who were not admitted (or withdrew)

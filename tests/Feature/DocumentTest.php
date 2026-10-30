@@ -285,27 +285,34 @@ class DocumentTest extends TestCase
     /** §9.1/§9.3: files go straight to the DMS; a replacement is a new version of the same document */
     public function test_dms_store(): void
     {
-        config(['admission.documents.driver' => 'dms', 'admission.dms.base_url' => 'https://dms.test/api', 'admission.dms.api_key' => 'k-123']);
+        config(['admission.documents.driver' => 'dms', 'admission.dms.base_url' => 'https://dms.test/api/v1', 'admission.dms.token' => 't-123']);
         Http::fake([
-            'dms.test/api/documents' => Http::response(['id' => 'DMS-778'], 201),
-            'dms.test/api/documents/DMS-778/versions' => Http::response(['id' => 'DMS-778'], 201),
-            'dms.test/api/documents/DMS-778/download-url' => Http::response(['url' => 'https://files.dms.test/tmp/abc'], 200),
-            'files.dms.test/*' => Http::response('%PDF-1.4 test', 200),
+            'dms.test/api/v1/documents' => Http::response(['document_id' => 'doc-1', 'version_id' => 'ver-1', 'revision' => 1, 'scan_status' => 'Pending'], 201),
+            'dms.test/api/v1/documents/doc-1' => Http::response(['data' => ['id' => 'doc-1', 'revision' => 1]], 200),
+            'dms.test/api/v1/documents/doc-1/versions' => Http::response(['document_id' => 'doc-1', 'version_id' => 'ver-2', 'revision' => 2, 'scan_status' => 'Pending'], 201),
+            'dms.test/api/v1/files/ver-2' => Http::response('%PDF-1.4 test', 200),
         ]);
         $user = $this->makeApplicant(true);
 
         $this->upload($user, 'psa')->assertCreated();
         $doc = ApplicationDocument::first();
-        $this->assertSame(['dms', 'DMS-778'], [$doc->storage_driver, $doc->storage_ref]);
-        Http::assertSent(fn (HttpRequest $r) => $r->hasHeader('X-API-Key', 'k-123') && $r->hasHeader('Idempotency-Key'));
+        $this->assertSame(['dms', 'doc-1:ver-1'], [$doc->storage_driver, $doc->storage_ref]);
+        Http::assertSent(fn (HttpRequest $r) => $r->hasHeader('Authorization', 'Bearer t-123') && $r->hasHeader('Idempotency-Key')
+            && str_ends_with($r->url(), '/documents'));
 
-        // Replaced in the draft: sent as a new version
+        // Replaced in the draft: sent as a new version of the same document, with its revision
         $this->upload($user, 'psa', UploadedFile::fake()->create('psa2.pdf', 150, 'application/pdf'))->assertCreated();
-        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/documents/DMS-778/versions'));
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/documents/doc-1/versions'));
+        $this->assertSame('doc-1:ver-2', ApplicationDocument::latest('id')->first()->storage_ref);
 
-        // Opened through the OAS: the 5-minute link never reaches the browser
+        // Opened through the OAS: the DMS token never reaches the browser
         $this->asUser($user)->get('/api/applicant/documents/psa/file')->assertOk();
-        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/download-url'));
+        Http::assertSent(fn (HttpRequest $r) => str_ends_with($r->url(), '/files/ver-2'));
+
+        // The DMS refuses medical files: they stay on the OAS's private disk
+        $this->acceptedSlot($this->applicationOf($user));
+        $this->upload($user, 'medCert', null, 'medical')->assertCreated();
+        $this->assertSame('local', ApplicationDocument::latest('id')->first()->storage_driver);
     }
 
     /** Stand-in for Phases 6–9: a released pass whose slot the applicant accepted. */

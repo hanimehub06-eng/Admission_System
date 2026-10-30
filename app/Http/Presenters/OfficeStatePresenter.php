@@ -127,7 +127,7 @@ class OfficeStatePresenter
             ->orderBy('a.id')
             ->get([
                 'a.id', 'a.number', 'a.status', 'a.created_at', 'a.submitted_at', 'a.medical_submitted_at',
-                'a.acceptance_deadline', 'a.offer_accepted_at', 'a.admitted_at', 'a.student_number',
+                'a.acceptance_deadline', 'a.offer_accepted_at', 'a.admitted_at',
                 'p.possible_duplicate_of', 'op.code as offered_program',
                 'p.lrn', 'p.last_name', 'p.first_name', 'p.middle_name', 'p.sex', 'p.phone', 'p.is_resident', 'p.district',
                 'p.barangay', 'p.address', 'p.city', 'p.province', 'p.birthday', 'p.school_type', 'p.last_school', 'p.strand',
@@ -244,7 +244,6 @@ class OfficeStatePresenter
                     'grade' => $withScore && $i->grade !== null ? (int) $i->grade : null,
                 ], fn ($v) => $v !== null))->values()->all(),
                 'admittedAt' => $this->at($a->admitted_at),
-                'studentNumber' => $a->student_number,
             ];
             // Medical requirements open once the slot is accepted (Application::medicalApplies)
             if (in_array($a->status, ['for_medical', 'admitted'], true)) {

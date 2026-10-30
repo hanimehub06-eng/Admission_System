@@ -4,9 +4,6 @@ use App\Http\Controllers\Api\Applicant\ApplicationController;
 use App\Http\Controllers\Api\Applicant\DocumentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DeanController;
-use App\Http\Controllers\Api\Integration\EmploymentController;
-use App\Http\Controllers\Api\Integration\EnrollmentController;
-use App\Http\Controllers\Api\Integration\RegistrarController;
 use App\Http\Controllers\Api\InterviewController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\Clinic;
@@ -35,21 +32,6 @@ Route::prefix('auth')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
         Route::post('email/resend', [AuthController::class, 'resendVerification'])->middleware('throttle:login');
     });
-});
-
-// Other ERP systems (REST + X-API-Key + IP allowlist; api-client:create). docs/INTEGRATIONS.md
-Route::prefix('integrations')->middleware('throttle:api')->group(function () {
-    Route::post('enrollment/student-number', [EnrollmentController::class, 'studentNumber'])->middleware('integration:enrollment');
-
-    // Employment System: staff accounts (FR-30)
-    Route::middleware('integration:employment')->group(function () {
-        Route::get('employment/employees', [EmploymentController::class, 'index']);
-        Route::post('employment/employees', [EmploymentController::class, 'sync']);
-        Route::delete('employment/employees/{employeeId}', [EmploymentController::class, 'destroy']);
-    });
-
-    // Registrar: admitted applicants (FR-29)
-    Route::get('registrar/admitted', [RegistrarController::class, 'admitted'])->middleware('integration:registrar');
 });
 
 // In-app notifications for any signed-in user

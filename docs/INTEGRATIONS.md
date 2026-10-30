@@ -1,132 +1,78 @@
 # Integrations
 
-How other university systems connect to the Online Admission System (OAS). Each interface is built and tested; the ones marked **waiting** are switched off or unused until the other system is ready. Nothing in the OAS needs to change to connect them beyond what each section says.
+How the Online Admission System (OAS) connects to the other university systems of the ERP. Every app-to-app call follows the **School Systems API Standard** ([API_Guide.md](API_Guide.md)). Interfaces marked **waiting** are built and tested, and switch on through `.env` once the other system gives us a URL and token.
 
-## Common rules
+## Common rules (School Systems API Standard)
 
-- **Base URL:** `https://<oas-host>/api/integrations/...`, JSON in and out.
-- **Authentication:** every call sends `X-API-Key: <key>`. The sysadmin creates one key per system on the server:
-  ```
-  php artisan api-client:create employment --ips=10.0.5.20   # --ips optional; Nginx can filter too
-  ```
-  The key is shown once. Only its SHA-256 is stored. A key works only for its own system's endpoints.
-- **Expiry (NFR-05):** keys expire after 90 days (`API_KEY_DAYS`). Running the same command again issues a new key (rotation); the old one stops working at once. An expired key gets `401` with *"This API key has expired…"*.
-- **Disable:** `php artisan api-client:create <name> --disable`.
-- **Errors:** `401` bad/expired key or IP; `422` with `{ message, errors }` for invalid data; `404` unknown record; `429` rate limit (240 requests/minute per key).
-- **Audit (NFR-09):** every inbound call is written to the audit log as *"API call from <system>: METHOD /path → status"*, plus the change it made (with before/after values).
-- **Idempotent:** sending the same data twice changes nothing, so a caller can always retry.
+- **No system calls the OAS.** The OAS pulls from EMS and sends to the DMS and Enrollment. There are no inbound API keys.
+- **Outbound:** `Authorization: Bearer <token>` (one token per system, issued by that system, kept in `.env`), `Accept`/`Content-Type: application/json`, base URLs ending in `/api/v1`. Never logged.
+- **Every POST** carries an `Idempotency-Key` (a UUID, the same on every retry). The DMS and Enrollment sends go through the `dms_outbox` table: a queued job delivers each row after the database commit and retries with backoff. An outage never blocks staff work. `php artisan dms:outbox` shows what is pending or failed, and `--retry` (also run hourly) sends it again.
+- **Data:** `snake_case`, dates `YYYY-MM-DD`, timestamps in UTC (`2027-03-10T02:15:00Z`), `null` for missing values. Official IDs: the applicant's **reference number** (`AD-2026-00001`, ours), EMS's `employee_no`, the DMS's document and version UUIDs.
+- **Our contract:** [openapi.json](openapi.json) defines the JSON we send to Enrollment. Update it in the same PR as any change.
 
 | ID | System | Direction | Status | Section |
 |---|---|---|---|---|
-| INT-A | Employment System (staff accounts) | Employment → OAS | Built, **waiting** for the Employment System | [1](#1-employment-system-staff-accounts-fr-30) |
-| INT-B | Registrar / Enrollment (admitted applicants) | Registrar ← OAS | Built (API + CSV/XLSX export) | [2](#2-registrar-admitted-applicants-fr-29) |
-| INT-C | Enrollment (student number back) | Enrollment → OAS | Built, off (`ENROLLMENT_CALLBACK_ENABLED`) | [3](#3-enrollment-student-number-callback) |
-| INT-D | Document Management System (DMS) | OAS → DMS | Built, **waiting** for the DMS API (`DMS_DRIVER=fake`) | [4](#4-document-management-system-dms) |
+| INT-A | Employee Management System (EMS): staff status | OAS ← EMS (we pull) | Built, **waiting** for an EMS token (`EMS_BASE_URL` empty) | [1](#1-ems-staff-accounts-fr-30) |
+| INT-B | Enrollment System: admitted applicants | OAS → Enrollment (we send JSON) | Built, **waiting** for their endpoint (`ENROLLMENT_DRIVER=fake`) | [2](#2-enrollment-system-admitted-applicants-fr-11-fr-29) |
+| INT-D | Document Management System (DMS) | OAS → DMS | Built to the DMS `openapi.json`, **waiting** for a DMS token (`DMS_DRIVER=fake`) | [3](#3-document-management-system-dms) |
 | INT-E | SMS provider | OAS → provider | Built, off (`SMS_DRIVER=none`) | [5](#5-sms-provider-fr-13) |
 | INT-F | Email (Gmail SMTP, Brevo failover) | OAS → provider | Live | `.env` `MAIL_*` |
 | INT-G | CAPTCHA (Cloudflare Turnstile or Google reCAPTCHA) | OAS → provider | Built, off (`CAPTCHA_DRIVER=none`) | [6](#6-captcha-on-registration-nfr-06) |
 
 ---
 
-## 1. Employment System: staff accounts (FR-30)
+## 1. EMS: staff accounts (FR-30)
 
-Every OAS user except applicants comes from the Employment System. It sends the employees who work in admissions, each with the OAS role they should have; the OAS creates, updates or disables their accounts. Until it is connected, the sysadmin uses `php artisan user:create`, and two demo accounts exist (see PROGRESS.md).
+EMS owns employees (`employee_no`, e.g. `26-00001`), but it has no Admission roles. So:
 
-API client name: **`employment`**.
+- The **Super Admin** creates staff accounts in **Admin → Accounts** and gives the role there, with the person's **EMS employee no.** (optional, `NN-NNNNN`). Until EMS is connected, demo accounts and `php artisan user:create` still work.
+- Every night at 01:30 (Asia/Manila), `php artisan ems:sync-staff` calls `GET {EMS_BASE_URL}/employees/{employee_no}` (EMS permission `employees:read`) for each active linked account:
+  - EMS says `inactive`, or `404` → the account is **disabled** (audited as *API · ems*). It is never re-enabled automatically: the Admin does that.
+  - The name changed in EMS → the account name follows (audited, before and after).
+  - Network error, 429 or 5xx → retried (1 s, 4 s, 16 s), then the run **stops without disabling anyone**, and it tries again the next night.
+- **To connect:** ask the EMS team for a token with `employees:read`, set `EMS_BASE_URL=https://<ems-host>/api/v1` and `EMS_TOKEN`, then run `php artisan optimize`.
 
-### Roles the Employment System may give
+---
 
-| `role` | Who | Can |
-|---|---|---|
-| `admission` | Admission Staff (evaluators) | All office work except releasing results |
-| `admission_head` | Admission Head / Director | Everything Admission Staff do, plus release results (FR-20) |
-| `proctor` | Exam proctors / venue staff | Rosters, QR check-in, attendance, envelope receipt |
-| `clinic` | University clinic (Medical) | Medical requirements only (Clinic module in `/admin`) |
-| `read_only` | Deans, Registrar, DPO / auditors | View the office panel and reports; change nothing |
-| `college_dean` | College deans (needs `college`) | Interviews for their college; their college's reports |
+## 2. Enrollment System: admitted applicants (FR-11, FR-29)
 
-`sysadmin` accounts are never managed from outside (server only). An email that belongs to an applicant account is refused.
+Admission **gives** the Enrollment System each applicant who is officially admitted (status `admitted`, after medical clearance), as JSON. Admission doesn't make or store student numbers: that is Enrollment's job.
 
-### `POST /api/integrations/employment/employees`
-
-Create or update up to 500 employees per call. Matched by `employeeId`, then by email (so accounts made by hand are linked the first time).
+- **When:** once, at the moment the clinic clears the applicant (event `enrollment.admitted` in the outbox).
+- **Call:** `POST {ENROLLMENT_URL}` with `Authorization: Bearer {ENROLLMENT_TOKEN}` and `Idempotency-Key`. Body: one applicant ([openapi.json](openapi.json) → `webhooks.admitted-applicant`):
 
 ```json
 {
-  "employees": [
-    { "employeeId": "E-1001", "name": "Rosa Dizon", "email": "r.dizon@plpasig.edu.ph", "role": "admission", "active": true },
-    { "employeeId": "E-2040", "name": "Dr. Ana Lim", "email": "a.lim@plpasig.edu.ph", "role": "college_dean", "college": "CON" }
-  ]
+  "reference_number": "AD-2026-00001", "lrn": "123456789012",
+  "last_name": "Mendoza", "first_name": "Jordan", "middle_name": "Reyes", "sex": "Male", "birthday": "2008-03-14",
+  "email": "jordan@example.com", "phone": "+63 917 123 4567", "address": "12 Mabini St.",
+  "is_pasig_resident": true, "district": 1, "barangay": "Kapitolyo",
+  "last_school": "Rizal High School", "school_type": "Public", "strand": "STEM",
+  "program": { "code": "BSIT", "name": "BS Information Technology" },
+  "college": { "code": "CCS", "name": "College of Computer Studies" },
+  "admitted_at": "2027-03-10T02:15:00Z"
 }
 ```
 
-Response `200` (each employee succeeds or fails on its own; `422` only if all failed):
-
-```json
-{ "data": [
-  { "employeeId": "E-1001", "status": "created" },
-  { "employeeId": "E-2040", "status": "rejected", "message": "A college_dean needs a college code: CAS, CBA, CCS, CHM, COE, COED, CON." }
-] }
-```
-
-`status`: `created`, `updated` (role, name, email, college or active changed; audited with before/after), `unchanged`, `rejected`.
-
-New accounts get a random password: the person signs in after **Forgot password**, or through single sign-on once that is added.
-
-### `DELETE /api/integrations/employment/employees/{employeeId}`
-
-The employee left or moved: the account is disabled at once (its open sessions stop working on the next request). Accounts are never deleted, because the audit trail points to them. Send the employee again with `"active": true` to re-enable.
-
-### `GET /api/integrations/employment/employees`
-
-Every linked account, for reconciliation: `employeeId, name, email, role, college, active, source, lastLoginAt`.
-
-**Suggested schedule:** call `POST` whenever an assignment changes, plus a nightly full sync of everyone in admissions.
+- Exam scores and interview grades never leave the OAS. The documents reach Enrollment through the DMS applicant packet ([§3](#3-document-management-system-dms)).
+- Staff can download the same list as the **Admitted applicants** report (`/api/reports/admitted-applicants?format=csv|xlsx|pdf`). The fields live in `App\Services\AdmittedApplicantsService`.
+- **Until connected:** `ENROLLMENT_DRIVER=fake` writes each send to `storage/app/private/enrollment-fake.jsonl`, and the outbox marks it sent.
+- **To connect** (⏳ waiting on the Enrollment team for their URL, a token, and confirmation of this body):
+  1. Set `ENROLLMENT_DRIVER=http`, `ENROLLMENT_URL` (proposed: `https://<enrollment-host>/api/v1/admitted-applicants`) and `ENROLLMENT_TOKEN`, then run `php artisan optimize`.
+  2. Applicants admitted while on `fake` are already marked sent. To send one again: `php artisan tinker` → `app(App\Services\Dms\DmsSync::class)->admitted(App\Models\Application::where('number', 'AD-2026-00001')->first());`
+  3. If Enrollment wants a different body, change `AdmittedApplicantsService::record()` and `openapi.json` together.
 
 ---
 
-## 2. Registrar: admitted applicants (FR-29)
+## 3. Document Management System (DMS)
 
-API client name: **`registrar`**. The same data is downloadable by staff as the **Admitted applicants (Registrar)** report (`/api/reports/admitted-applicants?format=csv|xlsx|pdf`).
+Built against the DMS team's `docs/openapi.json` (monorepo `apps/document-management`). `DMS_BASE_URL=https://<dms-host>/api/v1`, `DMS_TOKEN` = the connector token the DMS issues for source `OAS`.
 
-### `GET /api/integrations/registrar/admitted?since=2027-03-01T00:00:00Z&page=1`
-
-Admitted applicants of the current admission period, oldest admission first, 500 per page. `since` (optional) returns only those admitted at or after that time, for incremental pulls.
-
-```json
-{
-  "data": [{
-    "applicationNumber": "AD-2026-00001", "lrn": "123456789012",
-    "lastName": "Mendoza", "firstName": "Jordan", "middleName": "Reyes", "sex": "Male", "birthday": "2008-03-14",
-    "email": "jordan@example.com", "phone": "+63 917 123 4567", "address": "12 Mabini St.",
-    "pasigResident": true, "district": 1, "barangay": "Kapitolyo",
-    "lastSchool": "Rizal High School", "schoolType": "Public", "strand": "STEM",
-    "programCode": "BSIT", "program": "BS Information Technology",
-    "admittedAt": "2027-03-10", "studentNumber": null
-  }],
-  "meta": { "page": 1, "pages": 1, "total": 1, "columns": { "applicationNumber": "Application no.", "...": "..." } }
-}
-```
-
-Exam scores never leave the OAS. The column list lives in `App\Services\RegistrarExportService::COLUMNS`; change it there when the Registrar confirms its layout.
-
----
-
-## 3. Enrollment: student number callback
-
-API client name: **`enrollment`**. Off until `ENROLLMENT_CALLBACK_ENABLED=true` (returns `404` while off).
-
-`POST /api/integrations/enrollment/student-number` with `{ "admission_reference": "AD-2026-00001", "student_number": "2027-00123" }`. Safe to repeat.
-
----
-
-## 4. Document Management System (DMS)
-
-The OAS sends to the DMS; the DMS doesn't call the OAS.
-
-- **Records (`DMS_DRIVER`):** every record change (applicant data, document uploaded/reviewed, exam scheduled, result, offer, admission completed, retention expired) goes into the `dms_outbox` table and is delivered by a queued job with an `Idempotency-Key`. A DMS outage never blocks staff work; `php artisan dms:outbox --retry` (hourly) resends. `fake` (default) marks them delivered locally; `http` sends to `DMS_BASE_URL` with `DMS_API_KEY`.
-- **Files (`DOCUMENT_STORE`):** `local` (private disk, default) or `dms` (uploaded to the DMS; the OAS keeps only the DMS document ID). Files already stored stay readable from where they were saved.
-- **To connect:** get the DMS API contract, adjust `App\Services\Dms\HttpDmsClient` and `App\Services\Documents\DmsDocumentStore` to it, set the `.env` values, then run `php artisan dms:outbox --retry` to deliver what is waiting (and `--resync=AD-2026-00001` to send one applicant's record again).
+- **Record changes (`DMS_DRIVER`):** every change (applicant data, document uploaded or reviewed, exam scheduled, result, offer, admission completed, …) becomes one `POST /history` entry: `{ event_id, record_type, record_id, revision, operation: "upsert", payload }`. `record_type` is `applicant` for the full record, or the event type (e.g. `status.changed`). `record_id` is the reference number. `revision` is the outbox row id, which only grows.
+- **Applicant packet:** on admission, the verified admission documents stored in the DMS are released with `POST /applicant-packets`: `{ event_id, applicant_id: <reference number>, revision, released: true, admitted: true, verified: true, version_ids: [...] }`. Enrollment reads them from the DMS. Nothing is sent if no document is in the DMS (the DMS refuses an empty release).
+- **Files (`DOCUMENT_STORE`):** `local` (private disk, the default) or `dms`. With `dms`, a first upload goes to `POST /documents` (multipart: `file`, `title`, `classification: Confidential`, `reference` = reference number, `category` = requirement key). A replacement goes to `POST /documents/{id}/versions` with the document's current `revision`. Files are opened through `GET /files/{version_id}`, and only through an authorized OAS route. The OAS keeps `"{document_id}:{version_id}"`. Files already stored stay readable from where they were saved.
+- **Medical files never go to the DMS:** it refuses them, so they stay on the OAS private disk even with `DOCUMENT_STORE=dms`, and they are never in a packet.
+- **To connect:** set `DMS_DRIVER=http`, `DMS_BASE_URL`, `DMS_TOKEN` (and `DOCUMENT_STORE=dms` for files), then run `php artisan optimize` and `php artisan dms:outbox --retry`. Use `--resync=AD-2026-00001` to send one applicant's record again.
 
 ---
 
