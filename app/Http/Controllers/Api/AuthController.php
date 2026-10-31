@@ -193,7 +193,7 @@ class AuthController extends Controller
         return response()->json(['message' => "If an account exists for {$data['email']}, a reset link is on its way."]);
     }
 
-    /** UI pending: the portal has no "new password" screen yet. */
+    /** Called by the portal's "new password" form; also lifts a sign-in lockout. */
     public function resetPassword(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -203,7 +203,7 @@ class AuthController extends Controller
         ]);
 
         $status = Password::reset($data, function (User $user, string $password) {
-            $user->forceFill(['password' => $password])->save();
+            $user->forceFill(['password' => $password, 'failed_logins' => 0, 'locked_until' => null])->save();
             event(new PasswordReset($user));
         });
 

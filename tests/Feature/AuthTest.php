@@ -233,6 +233,29 @@ class AuthTest extends TestCase
             ->assertJsonPath('message', 'If an account exists for nobody@example.com, a reset link is on its way.');
     }
 
+    /** The emailed link opens the portal's "new password" form, which posts the token back */
+    public function test_reset_link_changes_the_password_once_and_lifts_a_lockout(): void
+    {
+        Notification::fake();
+        $user = $this->makeUser(Role::Applicant, ['email' => 'jordan@example.com', 'locked_until' => now()->addMinutes(15)]);
+
+        $this->postJson('/api/auth/forgot-password', ['email' => $user->email])->assertOk();
+        $url = null;
+        Notification::assertSentTo($user, \Illuminate\Auth\Notifications\ResetPassword::class, function ($n) use ($user, &$url) {
+            $url = $n->toMail($user)->actionUrl;
+
+            return true;
+        });
+        parse_str(parse_url($url, PHP_URL_QUERY), $q);
+        $this->assertSame($user->email, $q['email']);
+
+        $body = ['token' => $q['reset'], 'email' => $q['email'], 'password' => 'newpass123', 'password_confirmation' => 'newpass123'];
+        $this->postJson('/api/auth/reset-password', $body)->assertOk();
+        $this->postJson('/api/auth/reset-password', $body)->assertUnprocessable();   // single use
+        $this->assertNull($user->fresh()->locked_until);
+        $this->login($user->email, 'applicant', 'newpass123')->assertOk();
+    }
+
     /** D7: staff accounts come from the sysadmin's artisan command, not the API */
     public function test_sysadmin_creates_staff_with_artisan(): void
     {

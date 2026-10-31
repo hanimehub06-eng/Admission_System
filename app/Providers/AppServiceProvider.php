@@ -67,7 +67,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(240)->by($request->user()?->id ?: $request->ip()));
         RateLimiter::for('uploads', fn (Request $request) => Limit::perMinute(30)->by($request->user()?->id ?: $request->ip()));
 
-        // The portal has no reset screen yet; the link opens the portal with the token (UI pending)
+        // The portal reads ?reset=&email= and opens its "new password" form
         ResetPassword::createUrlUsing(fn ($user, string $token) => url('/').'?reset='.$token.'&email='.urlencode($user->email));
 
         // Pulse and Log Viewer (INT-06): local machine, or the sysadmin over the VPN allowlist (Nginx)

@@ -231,7 +231,7 @@ $(function () {
   /* ==========================================================================
      AUTH (Laravel API, JWT)
      ========================================================================== */
-  var AUTH_FORMS = { signin: "#signin-form", signup: "#signup-form", forgot: "#forgot-form", code: "#code-form" };
+  var AUTH_FORMS = { signin: "#signin-form", signup: "#signup-form", forgot: "#forgot-form", reset: "#reset-form", code: "#code-form" };
   // The open form fades out, then the new one rises in (CSS); resolves once the new one shows
   function showAuth(panel) {
     $(".auth-tabs").prop("hidden", panel === "code").toggleClass("signup", panel === "signup");
@@ -404,6 +404,28 @@ $(function () {
       .done(function (res) { $("#forgot-note").text(res.message); })
       .fail(function (xhr) { if (!captchaError($form, xhr)) $("#forgot-note").text(AO.apiError(xhr)); })
       .always(function () { resetCaptcha($form); });
+  });
+
+  // The emailed reset link opens the portal with ?reset=<token>&email=<email>
+  var resetLink = null;
+  $("#reset-form").on("submit", function (e) {
+    e.preventDefault();
+    var ok = validateFields($(this));
+    if ($("#reset-password").val() && $("#reset-confirm").val() !== $("#reset-password").val()) { setError($("#reset-confirm"), "Passwords don't match."); ok = false; }
+    if (!ok || !resetLink) return;
+    var reset = AO.api("POST", "/api/auth/reset-password", { token: resetLink.token, email: resetLink.email, password: $("#reset-password").val(), password_confirmation: $("#reset-confirm").val() });
+    AO.busy($("#reset-submit"), reset)
+      .done(function (res) {
+        resetLink = null;
+        $("#reset-password, #reset-confirm").val("");
+        $("#signin-email").val($("#reset-email-label").text());
+        showAuth("signin");
+        showToast(res.message);
+      })
+      .fail(function (xhr) {
+        var errors = (xhr.responseJSON && xhr.responseJSON.errors) || {};
+        setError(errors.password ? $("#reset-password") : $("#reset-confirm"), errors.password ? errors.password[0] : AO.apiError(xhr));
+      });
   });
 
   $(".logout-button").on("click", function () {
@@ -1530,7 +1552,13 @@ $(function () {
   initTooltips(document);
   var remembered = readJSON("local", REMEMBER_KEY);
   if (remembered) { $("#signin-email").val(remembered); $("#remember-me").prop("checked", true); }
-  showAuth("signin");
+  var params = new URLSearchParams(window.location.search);
+  if (params.get("reset") && params.get("email")) {
+    resetLink = { token: params.get("reset"), email: params.get("email") };
+    history.replaceState(null, "", window.location.pathname);   // keep the token out of history and bookmarks
+    $("#reset-email-label").text(resetLink.email);
+    showAuth("reset");
+  } else showAuth("signin");
   // Still signed in in this tab: reload the application and go straight in
-  if (AO.getToken()) loadPortal().done(enterApp).fail(function () { AO.setToken(null); });
+  if (!resetLink && AO.getToken()) loadPortal().done(enterApp).fail(function () { AO.setToken(null); });
 });

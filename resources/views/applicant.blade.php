@@ -152,6 +152,33 @@
               data-icon="arrowL"></span>Back to sign in</button>
         </form>
 
+        <!-- New password (opened from the reset link in the email) -->
+        <form id="reset-form" class="auth-form" novalidate hidden>
+          <div class="auth-head">
+            <h2>Choose a new password</h2>
+            <p>For <strong id="reset-email-label"></strong>. The link expires 60 minutes after it was sent.</p>
+          </div>
+          <div>
+            <label class="form-label" for="reset-password">New password</label>
+            <div class="input-wrap">
+              <input class="form-control" id="reset-password" type="password" autocomplete="new-password"
+                minlength="8" pattern="(?=.*\p{L})(?=.*\d).*" data-msg-pattern="Use at least one letter and one number." required>
+              <button class="pw-toggle" type="button" aria-label="Show password" aria-pressed="false"
+                data-target="reset-password"><span data-icon="eye"></span></button>
+            </div>
+            <div class="invalid-feedback" id="reset-password-error"></div>
+          </div>
+          <div>
+            <label class="form-label" for="reset-confirm">Confirm new password</label>
+            <input class="form-control" id="reset-confirm" type="password" autocomplete="new-password" required>
+            <div class="invalid-feedback" id="reset-confirm-error"></div>
+          </div>
+          <button class="btn btn-brand btn-lg w-100" type="submit" id="reset-submit"><span class="btn-label">Change
+              password</span></button>
+          <button class="link-button align-self-center back-to-signin" type="button"><span
+              data-icon="arrowL"></span>Back to sign in</button>
+        </form>
+
         <!-- Email code (two-step sign-in and sign-up) -->
         <form id="code-form" class="auth-form" novalidate hidden>
           <div class="auth-head">

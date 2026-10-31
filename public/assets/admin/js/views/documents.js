@@ -1,7 +1,7 @@
 /* ==========================================================================
    Views: Document review
-   #/documents      list of applicants with documents waiting (names only),
-                    oldest submission first
+   #/documents      every applicant not yet approved for the exam, those
+                    with documents waiting first (oldest submission first)
    #/documents/:id  that applicant's files: view, verify or send back
    ========================================================================== */
 (function ($) {
@@ -13,12 +13,15 @@
 
   function waiting(a) { return a.submittedAt && !a.exam && ADM.docSummary(a).pending > 0; }
 
+  // Applicants with nothing sent yet still open (they show "0 files")
   function queue() {
+    var key = function (a) { return a.submittedAt || a.createdAt; };
     return ADM.state.applicants.filter(function (a) {
-      if (!waiting(a)) return false;
+      if (a.exam || ADM.statusOf(a) === "rejected") return false;
       return !f.q || (ADM.fullName(a) + " " + a.id + " " + a.lrn).toLowerCase().indexOf(f.q.toLowerCase()) !== -1;
     }).sort(function (x, y) {
-      return f.sort === "newest" ? (x.submittedAt < y.submittedAt ? 1 : -1) : (x.submittedAt < y.submittedAt ? -1 : 1);
+      var w = (waiting(y) ? 1 : 0) - (waiting(x) ? 1 : 0);
+      return w || (f.sort === "newest" ? (key(x) < key(y) ? 1 : -1) : (key(x) < key(y) ? -1 : 1));
     });
   }
 
@@ -44,11 +47,11 @@
           var wd = ADM.workingDaysSince(a.submittedAt);
           return '<tr class="row-link" data-href="#/documents/' + esc(a.id) + '" tabindex="0">' +
             "<td>" + ui.applicantCell(a) + "</td>" +
-            "<td>" + AO.fmt(a.submittedAt) + '<small class="d-block' + (wd > ADM.REVIEW_SLA_DAYS ? " text-danger-soft" : " text-muted") + '">' + wd + " working day" + (wd === 1 ? "" : "s") + " waiting</small></td>" +
+            "<td>" + (a.submittedAt ? AO.fmt(a.submittedAt) + '<small class="d-block' + (wd > ADM.REVIEW_SLA_DAYS ? " text-danger-soft" : " text-muted") + '">' + wd + " working day" + (wd === 1 ? "" : "s") + " waiting</small>" : '<span class="text-muted">Not yet</span>') + "</td>" +
             "<td>" + s.pending + " file" + (s.pending === 1 ? "" : "s") + "</td>" +
             '<td class="text-end">' + icon("arrowR") + "</td></tr>";
         }).join("") + "</tbody></table></div>" + ui.pager(list.length, f.page)
-        : ui.empty("check", f.q ? "Nothing matches" : "All caught up", f.q ? "Clear the search to see everyone." : "No applicant has documents waiting for review.")) +
+        : ui.empty("check", f.q ? "Nothing matches" : "All caught up", f.q ? "Clear the search to see everyone." : "No applicant is waiting for document review.")) +
       "</section>"
     );
   }
@@ -58,18 +61,18 @@
      ========================================================================== */
   // Documents or Profile: staff compare the files with the details the applicant typed
   var reviewTab = "documents", reviewId = null;
-  function nextInQueue(after) { return queue().filter(function (a) { return a.id !== after; })[0]; }
+  function nextInQueue(after) { return queue().filter(function (a) { return a.id !== after && waiting(a); })[0]; }
 
   function renderReview($el, id) {
     var ui = ADM.ui;
     var a = ADM.applicant(id);
     var back = '<a class="back-link" href="#/documents" data-reveal>' + icon("arrowL") + "Document review</a>";
-    if (!a || !a.submittedAt) {
-      $el.html(back + '<section class="card-soft">' + ui.empty("search", "Nothing to review", "This applicant hasn't submitted documents.") + "</section>");
+    if (!a) {
+      $el.html(back + '<section class="card-soft">' + ui.empty("search", "Applicant not found", "Check the application ID.") + "</section>");
       return;
     }
     var s = ADM.docSummary(a);
-    var editable = !a.exam;
+    var editable = !a.exam && !!a.submittedAt;
     var next = nextInQueue(a.id);
     if (reviewId !== id) { reviewTab = "documents"; reviewId = id; }
     var outcome = "";
@@ -85,7 +88,7 @@
         return '<button type="button" role="tab" class="tab' + (reviewTab === t[0] ? " active" : "") + '" aria-selected="' + (reviewTab === t[0]) + '" data-review-tab="' + t[0] + '">' + t[1] + "</button>";
       }).join("") + "</nav>" +
       '<section class="table-card" data-reveal><div class="table-toolbar">' +
-      '<div class="who">' + ui.avatar(a) + '<span><strong>' + esc(ADM.fullName(a)) + '</strong><small>' + esc(a.id) + " · submitted " + AO.fmt(a.submittedAt) + "</small></span></div>" +
+      '<div class="who">' + ui.avatar(a) + '<span><strong>' + esc(ADM.fullName(a)) + '</strong><small>' + esc(a.id) + " · " + (a.submittedAt ? "submitted " + AO.fmt(a.submittedAt) : "not submitted yet") + " · " + s.pending + " document" + (s.pending === 1 ? "" : "s") + " to review</small></span></div>" +
       '<div class="d-flex gap-2 ms-auto flex-wrap">' +
       '<span class="text-muted small align-self-center">' + s.verified + " of " + s.total + " verified</span>" +
       (editable && s.pending ? '<button class="btn btn-ok btn-sm" type="button" data-rq-verify-all="' + esc(a.id) + '">' + icon("check") + "Verify all " + s.pending + "</button>" : "") +

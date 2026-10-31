@@ -67,7 +67,7 @@
   --font-body: "DM Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   --radius: 14px;
   --radius-sm: 9px;
-  --sidebar-w: 236px;
+  --sidebar-w: 256px;   /* fits "Document verification" and its count inside the padding */
   --ease: cubic-bezier(.2, .7, .2, 1);
 
   color-scheme: light;
@@ -576,6 +576,15 @@ h1 {
   background: #0d5f33;
   position: relative;
   isolation: isolate;
+}
+
+/* Sign-in screen: the page still scrolls on short windows, without a bar */
+html:has(.auth:not([hidden])) {
+  scrollbar-width: none;
+}
+
+html:has(.auth:not([hidden]))::-webkit-scrollbar {
+  display: none;
 }
 
 /* The photo is mirrored so the PLP building sits in the middle, clear of the text on the left */
@@ -1800,7 +1809,7 @@ h1 {
    ========================================================================== */
 @media (max-width: 1100px) {
   :root {
-    --sidebar-w: 216px;
+    --sidebar-w: 236px;
   }
 
   .topbar {
