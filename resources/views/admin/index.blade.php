@@ -219,6 +219,28 @@
     </div>
   </div>
 
+  <!-- Remove a troll or fake applicant: account, files and personal data -->
+  <div class="modal fade" id="removeAppModal" tabindex="-1" aria-labelledby="removeAppModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" id="remove-app-form" novalidate>
+        <div class="modal-body">
+          <span class="modal-icon modal-icon-warn" data-icon="trash"></span>
+          <h2 class="modal-title-serif" id="removeAppModalTitle">Remove this applicant?</h2>
+          <p id="remove-app-who" class="mb-3"></p>
+          <label class="form-label" for="remove-app-text">Reason, for the audit log <span class="req">*</span></label>
+          <textarea class="form-control" id="remove-app-text" rows="3" minlength="10" maxlength="500" required
+            placeholder="e.g. Fake account: offensive name and joke documents."></textarea>
+          <div class="invalid-feedback" id="remove-app-text-error"></div>
+          <div class="form-text">This can't be undone. Their account is deleted, their uploaded files are erased, their personal details are wiped and any exam seat is freed. Nothing is emailed to them.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warn"><span class="btn-label">Remove applicant</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Approve for exam: choose a session -->
   <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

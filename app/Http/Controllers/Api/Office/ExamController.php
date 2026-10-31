@@ -8,6 +8,7 @@ use App\Http\Presenters\OfficeStatePresenter;
 use App\Models\Application;
 use App\Models\ExamSession;
 use App\Models\Program;
+use App\Services\ApplicantRemovalService;
 use App\Services\ExamService;
 use App\Services\OfferService;
 use App\Services\PdfService;
@@ -67,6 +68,15 @@ class ExamController extends Controller
         $this->exams->reject($application, $reason, $request->user());
 
         return $this->applicant($application);
+    }
+
+    /** Remove a troll or fake applicant: account, files and personal data. */
+    public function remove(Request $request, Application $application, ApplicantRemovalService $removal): JsonResponse
+    {
+        $reason = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:500']])['reason'];
+        $removal->remove($application, $reason, $request->user());
+
+        return response()->json(['message' => 'Applicant removed.']);
     }
 
     /**

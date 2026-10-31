@@ -93,7 +93,7 @@
             '<td><span class="doc-meter" title="' + s.verified + " of " + s.total + ' verified"><span style="--w:' + ui.pct(s.verified, s.total) + '%"></span></span><small>' + s.verified + "/" + s.total + (s.resubmit ? ' · <b class="text-danger-soft">' + s.resubmit + " to redo</b>" : "") + "</small></td>" +
             "<td>" + ui.statusPill(a) + (ADM.isOverdue(a) ? ' <span class="late-dot" title="Past the review target">Overdue</span>' : "") + "</td>" +
             "<td>" + (a.submittedAt ? AO.fmt(a.submittedAt) + "<small class=\"d-block text-muted\">" + ui.relDays(a.submittedAt) + "</small>" : '<span class="text-muted">Not yet</span>') + "</td>" +
-            '<td class="text-end">' + icon("arrowR") + "</td></tr>";
+            '<td class="text-end text-nowrap">' + (ADM.canRemove(a) ? '<button class="icon-button text-danger" type="button" data-remove-app="' + esc(a.id) + '" aria-label="Remove ' + esc(ADM.fullName(a)) + '" data-bs-toggle="tooltip" data-bs-title="Remove applicant">' + icon("trash") + "</button>" : "") + icon("arrowR") + "</td></tr>";
         }).join("") + "</tbody></table></div>" + ui.pager(list.length, f.page)
         : ui.empty("search", "No applicants match", "Try a different search or clear the filters.")) +
       "</section>"
@@ -266,6 +266,7 @@
       '<p class="record-meta"><span class="mono">' + esc(a.id) + "</span>" + ui.statusPill(a) +
       (ADM.isOverdue(a) ? '<span class="late-dot">Overdue</span>' : "") + "</p></div>" +
       '<div class="record-actions"><button class="icon-button" type="button" data-print-form aria-label="Print application form" data-bs-toggle="tooltip" data-bs-title="Print form">' + icon("printer") + "</button>" +
+      (ADM.canRemove(a) ? '<button class="icon-button text-danger" type="button" data-remove-app="' + esc(a.id) + '" aria-label="Remove applicant" data-bs-toggle="tooltip" data-bs-title="Remove applicant">' + icon("trash") + "</button>" : "") +
       (ADM.canReject(a) ? '<button class="btn btn-ghost text-danger" type="button" data-reject-app>' + icon("x") + "Reject applicant</button>" : "") + primary + "</div></section>" +
       '<nav class="tabs" role="tablist" data-reveal>' + tabs.map(function (t) {
         return '<button type="button" role="tab" class="tab' + (tab === t[0] ? " active" : "") + '" aria-selected="' + (tab === t[0]) + '" data-tab="' + t[0] + '">' + t[1] + "</button>";
@@ -339,6 +340,22 @@
     var a = currentApplicant();
     bootstrap.Modal.getOrCreateInstance(document.getElementById("rejectAppModal")).hide();
     if (ADM.actions.rejectApplication(a, $("#reject-app-text").val().trim())) { ADM.refresh(); AO.showToast("Application rejected. The applicant was emailed the reason."); }
+  });
+  var removing = null;   // the applicant the Remove dialog is for (list row or record page)
+  $(document).on("click", "[data-remove-app]", function () {
+    var a = removing = ADM.applicant($(this).attr("data-remove-app"));
+    $("#remove-app-who").html("<strong>" + esc(ADM.fullName(a)) + "</strong> · " + esc(a.id));
+    $("#remove-app-text").val("");
+    AO.clearError($("#remove-app-text"));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("removeAppModal")).show();
+  });
+  $(document).on("submit", "#remove-app-form", function (e) {
+    e.preventDefault();
+    if (!AO.validateFields($(this))) return;
+    var a = removing;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("removeAppModal")).hide();
+    var sent = ADM.actions.removeApplicant(a, $("#remove-app-text").val().trim());
+    if (sent) { ADM.go("#/applicants"); sent.done(function () { AO.showToast("Applicant removed. Their account, files and personal data were deleted."); }); }
   });
   $(document).on("click", "#view-applicant [data-reschedule]", function () {
     var a = currentApplicant();

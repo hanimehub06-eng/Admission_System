@@ -265,6 +265,11 @@
   function canApprove(a) { var s = docSummary(a); return statusOf(a) === "submitted" && s.verified === s.total; }
   // The office may reject before any exam result (ApplicationStatus::Rejected)
   function canReject(a) { return ["submitted", "resubmit", "for_exam"].indexOf(statusOf(a)) !== -1; }
+  // Troll or fake applicants: Admission Personnel, the Head and the Super Admin; not once a slot is accepted or admitted
+  function canRemove(a) {
+    var staff = (STAFF.roleKey === "admission" && (!STAFF.task || STAFF.task === "personnel")) || STAFF.roleKey === "admission_head" || STAFF.roleKey === "super_admin";
+    return staff && ["slot_accepted", "for_medical", "admitted"].indexOf(a.status) === -1;
+  }
 
   function fullName(a, lastFirst) {
     return lastFirst ? a.lastName + ", " + a.firstName + (a.middleName ? " " + a.middleName.charAt(0) + "." : "") : [a.firstName, a.middleName, a.lastName].filter(Boolean).join(" ");
@@ -334,7 +339,7 @@
     STRAND_SUGGEST: STRAND_SUGGEST, STRANDS: STRANDS, BARANGAYS: BARANGAYS, BATCHES: BATCHES,
     state: state, interviews: interviews, dean: dean, load: load, loadInterviews: loadInterviews, loadDean: loadDean, invalidate: invalidate, save: save, reset: reset, replaceApplicant: replaceApplicant, nowISO: nowISO, logApplicant: logApplicant, logOffice: logOffice,
     requiredDocs: requiredDocs, docSummary: docSummary, statusOf: statusOf, workingDaysSince: workingDaysSince,
-    isOverdue: isOverdue, canApprove: canApprove, canReject: canReject, fullName: fullName, initials: initials, residency: residency,
+    isOverdue: isOverdue, canApprove: canApprove, canReject: canReject, canRemove: canRemove, fullName: fullName, initials: initials, residency: residency,
     program: program, session: session, sessionLabel: sessionLabel, sessionRoster: sessionRoster, sessionPast: sessionPast,
     sortedSessions: sortedSessions, applicant: applicant, countBy: countBy, auditTrail: auditTrail, downloadCSV: downloadCSV,
     views: {}

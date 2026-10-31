@@ -112,6 +112,13 @@
       return true;
     },
 
+    // Account, files and personal data are deleted; the applicant leaves every list
+    removeApplicant: function (a, reason) {
+      if (!ADM.canRemove(a)) return null;
+      ADM.state.applicants.splice(ADM.state.applicants.indexOf(a), 1);
+      return send("DELETE", "applicants/" + encodeURIComponent(a.id), { reason: reason });
+    },
+
     // Move an absent examinee to another session
     reschedule: function (a, sessionId) {
       var s = ADM.session(sessionId);

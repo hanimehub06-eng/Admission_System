@@ -125,6 +125,7 @@ Route::prefix('admin')->middleware(['auth:api', 'active', 'two_factor', 'role:ad
         Route::post('applicants/{application}/approve', [Office\ExamController::class, 'approve']);
         Route::post('applicants/{application}/reschedule', [Office\ExamController::class, 'reschedule']);
         Route::post('applicants/{application}/reject', [Office\ExamController::class, 'reject']);
+        Route::delete('applicants/{application}', [Office\ExamController::class, 'remove']);
         Route::post('exam/auto-assign', [Office\ExamController::class, 'autoAssign']);
     });
 
