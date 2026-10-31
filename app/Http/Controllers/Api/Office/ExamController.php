@@ -60,6 +60,15 @@ class ExamController extends Controller
         return $this->applicant($application);
     }
 
+    /** Reject the application (before any exam result). Body: { reason } */
+    public function reject(Request $request, Application $application): JsonResponse
+    {
+        $reason = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:500']])['reason'];
+        $this->exams->reject($application, $reason, $request->user());
+
+        return $this->applicant($application);
+    }
+
     /**
      * FR-14: seat every applicant whose documents are all verified in the
      * earliest sessions with room. Body: { ids?: ["AD-2026-00001", …] }.

@@ -265,7 +265,8 @@
       '<div class="record-id"><h1>' + esc(ADM.fullName(a)) + "</h1>" +
       '<p class="record-meta"><span class="mono">' + esc(a.id) + "</span>" + ui.statusPill(a) +
       (ADM.isOverdue(a) ? '<span class="late-dot">Overdue</span>' : "") + "</p></div>" +
-      '<div class="record-actions"><button class="icon-button" type="button" data-print-form aria-label="Print application form" data-bs-toggle="tooltip" data-bs-title="Print form">' + icon("printer") + "</button>" + primary + "</div></section>" +
+      '<div class="record-actions"><button class="icon-button" type="button" data-print-form aria-label="Print application form" data-bs-toggle="tooltip" data-bs-title="Print form">' + icon("printer") + "</button>" +
+      (ADM.canReject(a) ? '<button class="btn btn-ghost text-danger" type="button" data-reject-app>' + icon("x") + "Reject applicant</button>" : "") + primary + "</div></section>" +
       '<nav class="tabs" role="tablist" data-reveal>' + tabs.map(function (t) {
         return '<button type="button" role="tab" class="tab' + (tab === t[0] ? " active" : "") + '" aria-selected="' + (tab === t[0]) + '" data-tab="' + t[0] + '">' + t[1] + "</button>";
       }).join("") + "</nav>" +
@@ -324,6 +325,20 @@
       if (ADM.actions.approveForExam(a, sid)) { tab = "exam"; ADM.refresh(); AO.showToast("Approved. Exam permit " + a.exam.permit + " issued."); }
       else AO.showToast("That session is full. Choose another.");
     });
+  });
+  $(document).on("click", "#view-applicant [data-reject-app]", function () {
+    var a = currentApplicant();
+    $("#reject-app-who").html("<strong>" + esc(ADM.fullName(a)) + "</strong> · " + esc(a.id));
+    $("#reject-app-text").val("");
+    AO.clearError($("#reject-app-text"));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("rejectAppModal")).show();
+  });
+  $(document).on("submit", "#reject-app-form", function (e) {
+    e.preventDefault();
+    if (!AO.validateFields($(this))) return;
+    var a = currentApplicant();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById("rejectAppModal")).hide();
+    if (ADM.actions.rejectApplication(a, $("#reject-app-text").val().trim())) { ADM.refresh(); AO.showToast("Application rejected. The applicant was emailed the reason."); }
   });
   $(document).on("click", "#view-applicant [data-reschedule]", function () {
     var a = currentApplicant();

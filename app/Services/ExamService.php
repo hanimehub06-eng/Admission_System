@@ -259,6 +259,24 @@ class ExamService
         ExamScheduled::dispatch($application, $session);
     }
 
+    /**
+     * The office rejects an application before any exam result (Submitted,
+     * Requires resubmission or For exam), with the reason the applicant is
+     * told. A scheduled examinee's seat is freed. Final: the record is kept.
+     */
+    public function reject(Application $application, string $reason, User $staff): void
+    {
+        if ($application->result || ! $application->status->canMoveTo(ApplicationStatus::Rejected)) {
+            throw new BusinessRuleException('Only an application without an exam result can be rejected.');
+        }
+
+        DB::transaction(function () use ($application, $reason, $staff) {
+            $application->examRegistration?->delete();
+            $this->status->transition($application, ApplicationStatus::Rejected, $staff, $reason);
+            $this->audit->record('application.rejected', "Rejected the application: {$reason}", $application, $application);
+        });
+    }
+
     /** Venue checklist and attendance. "Present" needs the permit and form checked. */
     public function updateRoster(Application $application, array $changes, User $staff): void
     {

@@ -502,7 +502,7 @@ $(function () {
   /* [pill class, label] for where the application is */
   function statusPill() {
     var med = state.medical.status;
-    var byStatus = { passed: ["exam", "Passed exam"], failed: ["draft", "Did not pass"], for_interview: ["exam", "For interview"], interview_failed: ["draft", "Not accepted"], offered: ["admitted", "Offer ready"], forfeited: ["draft", "Offer expired"] };
+    var byStatus = { passed: ["exam", "Passed exam"], failed: ["draft", "Did not pass"], for_interview: ["exam", "For interview"], interview_failed: ["draft", "Not accepted"], offered: ["admitted", "Offer ready"], forfeited: ["draft", "Offer expired"], rejected: ["draft", "Not accepted"] };
     if (byStatus[STATUS]) return byStatus[STATUS];
     return { draft: ["draft", "Draft"], review: ["review", "Submitted"], exam: ["exam", "Exam scheduled"], result: state.accepted && med !== "cleared" ? ["review", med === "submitted" ? "Medical check" : "Medical pending"] : ["admitted", "Admitted"] }[state.phase];
   }
@@ -530,7 +530,7 @@ $(function () {
     var med = state.medical.status;
     var resultTitle = med === "cleared" ? "Admission complete · See you in August" : med === "submitted" ? "Your medical requirements are being checked" : "Last step · Submit your medical requirements";
     var byStatus = { submitted: "Admissions is checking your application", for_exam: "You're scheduled for the entrance exam", passed: "You passed the entrance exam", failed: "Your entrance exam result is in",
-      for_interview: "Your college interviews", interview_failed: "Your interview results are in", offered: "Your offer of admission is ready", forfeited: "Your offer expired" };
+      for_interview: "Your college interviews", interview_failed: "Your interview results are in", offered: "Your offer of admission is ready", forfeited: "Your offer expired", rejected: "Your application was not accepted. Check your email for the reason." };
     $("#journey-title").text(state.accepted ? resultTitle : byStatus[STATUS] || "Step " + current + " of " + STAGES + " · " + JOURNEY[current - 1].title);
     var pill = statusPill();
     $("#status-pill").attr("class", "status-pill " + pill[0]).text(pill[1]);

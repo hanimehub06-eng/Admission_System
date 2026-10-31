@@ -14,6 +14,7 @@ namespace App\Enums;
  *                                        Offered (letter issued, deadline set)
  *   Offered → Slot accepted → For medical → Admitted                    (final)
  *   Offered → Forfeited                                                 (final)
+ *   Submitted / Requires resubmission / For exam → Rejected by the office (final)
  *
  * "passed" means the exam was passed; the result is released (and the
  * applicant moves on) separately.
@@ -33,6 +34,7 @@ enum ApplicationStatus: string
     case ForMedical = 'for_medical';
     case Admitted = 'admitted';
     case Forfeited = 'forfeited';
+    case Rejected = 'rejected';
 
     public function label(): string
     {
@@ -50,6 +52,7 @@ enum ApplicationStatus: string
             self::ForMedical => 'For medical',
             self::Admitted => 'Admitted',
             self::Forfeited => 'Forfeited',
+            self::Rejected => 'Rejected',
         };
     }
 
@@ -58,9 +61,9 @@ enum ApplicationStatus: string
     {
         return match ($this) {
             self::Draft => [self::Submitted],
-            self::Submitted => [self::Resubmit, self::ForExam],
-            self::Resubmit => [self::Submitted, self::ForExam],
-            self::ForExam => [self::Passed, self::Failed],
+            self::Submitted => [self::Resubmit, self::ForExam, self::Rejected],
+            self::Resubmit => [self::Submitted, self::ForExam, self::Rejected],
+            self::ForExam => [self::Passed, self::Failed, self::Rejected],
             // A result can be corrected before release; release moves a pass on
             self::Passed => [self::Failed, self::ForInterview, self::Offered],
             self::Failed => [self::Passed],
@@ -68,7 +71,7 @@ enum ApplicationStatus: string
             self::Offered => [self::SlotAccepted, self::Forfeited],
             self::SlotAccepted => [self::ForMedical],
             self::ForMedical => [self::Admitted],
-            self::InterviewFailed, self::Admitted, self::Forfeited => [],
+            self::InterviewFailed, self::Admitted, self::Forfeited, self::Rejected => [],
         };
     }
 

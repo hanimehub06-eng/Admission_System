@@ -131,3 +131,24 @@ test('a dean writes exam questions for their own college only', function () {
     $this->asUser($ccs)->getJson('/api/dean/exam-questions')->assertJsonCount(1, 'data')->assertJsonPath('data.0.question', '2 + 3 = ?');
     $this->asUser($ccs)->deleteJson("/api/dean/exam-questions/{$id}")->assertNoContent();
 });
+
+test('admission personnel reject an applicant with a reason; the seat is freed and the applicant told', function () {
+    \Illuminate\Support\Facades\Notification::fake();
+    $user = $this->approved();
+    $number = $this->number($user);
+    $app = $this->app_($user);
+    expect($app->examRegistration)->not->toBeNull();
+
+    $this->asUser(tasked('proctor'))->postJson("/api/admin/applicants/{$number}/reject", ['reason' => 'Submitted a forged report card.'])->assertForbidden();
+    $this->asUser(tasked('personnel'))->postJson("/api/admin/applicants/{$number}/reject", ['reason' => 'short'])->assertUnprocessable();
+    $this->asUser(User::where('task', 'personnel')->first())->postJson("/api/admin/applicants/{$number}/reject", ['reason' => 'Submitted a forged report card.'])
+        ->assertOk()->assertJsonPath('data.status', 'rejected');
+
+    $app->refresh();
+    expect($app->status->value)->toBe('rejected')->and($app->examRegistration)->toBeNull();
+    $this->assertDatabaseHas('application_status_history', ['application_id' => $app->id, 'to_status' => 'rejected', 'remark' => 'Submitted a forged report card.']);
+    \Illuminate\Support\Facades\Notification::assertSentTo($user, \App\Notifications\AdmissionNotice::class);
+
+    // Final: it can't be rejected (or moved) again
+    $this->asUser($this->officer())->postJson("/api/admin/applicants/{$number}/reject", ['reason' => 'Submitted a forged report card.'])->assertUnprocessable();
+});

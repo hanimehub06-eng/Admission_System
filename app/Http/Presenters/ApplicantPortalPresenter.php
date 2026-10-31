@@ -82,7 +82,7 @@ class ApplicantPortalPresenter
     {
         return match ($application->status) {
             ApplicationStatus::Draft, ApplicationStatus::Resubmit => 'draft',
-            ApplicationStatus::Submitted => 'review',
+            ApplicationStatus::Submitted, ApplicationStatus::Rejected => 'review',
             ApplicationStatus::ForExam, ApplicationStatus::Passed, ApplicationStatus::Failed,
             ApplicationStatus::ForInterview, ApplicationStatus::InterviewFailed => 'exam',
             ApplicationStatus::Offered, ApplicationStatus::SlotAccepted, ApplicationStatus::ForMedical,

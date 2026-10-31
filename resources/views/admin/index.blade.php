@@ -197,6 +197,28 @@
     </div>
   </div>
 
+  <!-- Reject an applicant: reason (final) -->
+  <div class="modal fade" id="rejectAppModal" tabindex="-1" aria-labelledby="rejectAppModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" id="reject-app-form" novalidate>
+        <div class="modal-body">
+          <span class="modal-icon modal-icon-warn" data-icon="x"></span>
+          <h2 class="modal-title-serif" id="rejectAppModalTitle">Reject this applicant?</h2>
+          <p id="reject-app-who" class="mb-3"></p>
+          <label class="form-label" for="reject-app-text">Reason for the applicant <span class="req">*</span></label>
+          <textarea class="form-control" id="reject-app-text" rows="3" minlength="10" maxlength="500" required
+            placeholder="e.g. Submitted documents that are not genuine."></textarea>
+          <div class="invalid-feedback" id="reject-app-text-error"></div>
+          <div class="form-text">The applicant is emailed this reason. This is final: the application can't continue, and an exam seat is freed.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warn"><span class="btn-label">Reject applicant</span></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Approve for exam: choose a session -->
   <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

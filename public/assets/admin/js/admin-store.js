@@ -25,9 +25,10 @@
     passed: { label: "Passed", pill: "admitted" },
     failed: { label: "Did not pass", pill: "failed" },
     for_interview: { label: "For interview", pill: "exam" },
-    interview_failed: { label: "Interview failed", pill: "failed" }
+    interview_failed: { label: "Interview failed", pill: "failed" },
+    rejected: { label: "Rejected", pill: "failed" }
   };
-  var STATUS_ORDER = ["draft", "submitted", "resubmit", "for_exam", "for_interview", "passed", "failed", "interview_failed"];
+  var STATUS_ORDER = ["draft", "submitted", "resubmit", "for_exam", "for_interview", "passed", "failed", "interview_failed", "rejected"];
 
   var DOC_STATUS = {
     missing: { label: "Not uploaded", tag: "tag-missing" },
@@ -205,6 +206,7 @@
 
   function statusOf(a) {
     if (!a.submittedAt) return "draft";
+    if (a.status === "rejected") return "rejected";
     // Passed the exam, then a dean evaluation for programs that require one (D14)
     if (a.status === "for_interview" || a.status === "interview_failed") return a.status;
     if (a.result) return a.result.decision;
@@ -261,6 +263,8 @@
 
   function isOverdue(a) { return statusOf(a) === "submitted" && docSummary(a).pending > 0 && workingDaysSince(a.submittedAt) > REVIEW_SLA_DAYS; }
   function canApprove(a) { var s = docSummary(a); return statusOf(a) === "submitted" && s.verified === s.total; }
+  // The office may reject before any exam result (ApplicationStatus::Rejected)
+  function canReject(a) { return ["submitted", "resubmit", "for_exam"].indexOf(statusOf(a)) !== -1; }
 
   function fullName(a, lastFirst) {
     return lastFirst ? a.lastName + ", " + a.firstName + (a.middleName ? " " + a.middleName.charAt(0) + "." : "") : [a.firstName, a.middleName, a.lastName].filter(Boolean).join(" ");
@@ -330,7 +334,7 @@
     STRAND_SUGGEST: STRAND_SUGGEST, STRANDS: STRANDS, BARANGAYS: BARANGAYS, BATCHES: BATCHES,
     state: state, interviews: interviews, dean: dean, load: load, loadInterviews: loadInterviews, loadDean: loadDean, invalidate: invalidate, save: save, reset: reset, replaceApplicant: replaceApplicant, nowISO: nowISO, logApplicant: logApplicant, logOffice: logOffice,
     requiredDocs: requiredDocs, docSummary: docSummary, statusOf: statusOf, workingDaysSince: workingDaysSince,
-    isOverdue: isOverdue, canApprove: canApprove, fullName: fullName, initials: initials, residency: residency,
+    isOverdue: isOverdue, canApprove: canApprove, canReject: canReject, fullName: fullName, initials: initials, residency: residency,
     program: program, session: session, sessionLabel: sessionLabel, sessionRoster: sessionRoster, sessionPast: sessionPast,
     sortedSessions: sortedSessions, applicant: applicant, countBy: countBy, auditTrail: auditTrail, downloadCSV: downloadCSV,
     views: {}

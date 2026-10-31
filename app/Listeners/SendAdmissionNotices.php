@@ -39,6 +39,10 @@ class SendAdmissionNotices
         } elseif ($to === ApplicationStatus::Forfeited) {
             $this->notify($event->application, 'offer_forfeited', 'Your offer of admission has lapsed',
                 'The deadline to accept your slot has passed, so the offer was forfeited. Contact the admission office if you think this is a mistake.');
+        } elseif ($to === ApplicationStatus::Rejected) {
+            $reason = $event->application->statusHistory()->latest('id')->value('remark');
+            $this->notify($event->application, 'rejected', 'Your application was not accepted',
+                "The admission office rejected your application {$event->application->number}. Reason: {$reason} Contact the admission office if you have questions.");
         } elseif ($to === ApplicationStatus::Admitted) {
             $this->notify($event->application, 'medical_cleared', 'You are medically cleared',
                 'The university clinic verified your medical requirements. Your admission is complete.');

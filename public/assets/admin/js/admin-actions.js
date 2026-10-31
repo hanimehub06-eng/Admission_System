@@ -102,6 +102,16 @@
       return true;
     },
 
+    // Final; the reason is sent to the applicant, and a scheduled seat is freed
+    rejectApplication: function (a, reason) {
+      if (!ADM.canReject(a)) return false;
+      a.status = "rejected";
+      a.exam = null;
+      ADM.logApplicant(a, "Rejected the application: " + reason);
+      send("POST", applicantPath(a, "reject"), { reason: reason }, a);
+      return true;
+    },
+
     // Move an absent examinee to another session
     reschedule: function (a, sessionId) {
       var s = ADM.session(sessionId);
