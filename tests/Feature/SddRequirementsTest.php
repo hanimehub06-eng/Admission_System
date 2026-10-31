@@ -304,6 +304,11 @@ class SddRequirementsTest extends TestCase
             ->assertOk()->assertJsonPath('data.user.role', 'admission_head');
         $this->postJson('/api/auth/login', ['email' => 'ignacio_keane@plpasig.edu.ph', 'password' => 'clinic123', 'portal' => 'office'])
             ->assertOk()->assertJsonPath('data.user.role', 'clinic');
+        foreach (['personnel' => 'personnel', 'proctor' => 'proctor', 'examoffice' => 'exam_office'] as $name => $task) {
+            $this->postJson('/api/auth/login', ['email' => "{$name}@plpasig.edu.ph", 'password' => 'password123', 'portal' => 'office'])
+                ->assertOk()->assertJsonPath('data.user.role', 'admission');
+            $this->assertSame($task, User::where('email', "{$name}@plpasig.edu.ph")->value('task'));
+        }
         // Running it again is harmless
         $this->seed(DemoStaffAccountsSeeder::class);
         $this->assertSame(1, User::where('email', 'abella_gabrielrey@plpasig.edu.ph')->count());

@@ -20,9 +20,12 @@ use Illuminate\Database\Seeder;
 class DemoStaffAccountsSeeder extends Seeder
 {
     public const ACCOUNTS = [
-        // email, name, role, password
-        ['abella_gabrielrey@plpasig.edu.ph', 'Gabriel Rey Abella', Role::AdmissionHead, 'admin123'],
-        ['ignacio_keane@plpasig.edu.ph', 'Keane Ignacio', Role::Clinic, 'clinic123'],
+        // email, name, role, password, task (Admission Personnel only, AccountController::TASKS)
+        ['abella_gabrielrey@plpasig.edu.ph', 'Gabriel Rey Abella', Role::AdmissionHead, 'admin123', null],
+        ['ignacio_keane@plpasig.edu.ph', 'Keane Ignacio', Role::Clinic, 'clinic123', null],
+        ['personnel@plpasig.edu.ph', 'Demo Admission Personnel', Role::Admission, 'password123', 'personnel'],
+        ['proctor@plpasig.edu.ph', 'Demo Exam Proctor', Role::Admission, 'password123', 'proctor'],
+        ['examoffice@plpasig.edu.ph', 'Demo Exam Office', Role::Admission, 'password123', 'exam_office'],
     ];
 
     /** One demo College Dean per college: dean.<code>@plpasig.edu.ph, who sees only that college's applicants. */
@@ -37,10 +40,10 @@ class DemoStaffAccountsSeeder extends Seeder
     {
         $accounts = array_map(fn ($a) => [...$a, null], self::ACCOUNTS);
         foreach (College::orderBy('code')->get() as $college) {
-            $accounts[] = [self::deanEmail($college->code), "Dean, {$college->name}", Role::CollegeDean, self::DEAN_PASSWORD, $college];
+            $accounts[] = [self::deanEmail($college->code), "Dean, {$college->name}", Role::CollegeDean, self::DEAN_PASSWORD, null, $college];
         }
 
-        foreach ($accounts as [$email, $name, $role, $password, $college]) {
+        foreach ($accounts as [$email, $name, $role, $password, $task, $college]) {
             $user = User::withTrashed()->firstOrNew(['email' => $email]);
             $created = ! $user->exists;
             $user->trashed() && $user->restore();
@@ -51,6 +54,7 @@ class DemoStaffAccountsSeeder extends Seeder
                 'failed_logins' => 0,
                 'locked_until' => null,
                 'source' => 'demo',
+                'task' => $task,
             ])->save();
             $user->syncRoles([$role->value]);
             $college?->update(['dean_user_id' => $user->id]);

@@ -9,13 +9,16 @@
 
 ## 👤 Accounts (live server)
 
-> ⚠ Real passwords on a public server: don't share this file outside the team. Staff accounts are made by the Super Admin (Admin → Accounts, with the EMS employee no.) and disabled nightly when EMS says the employee left ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) §1); until EMS is connected these demo accounts are used. Disable one with `php artisan user:active <email> off`. The demo accounts (Admin, Clinic, Deans) are made or reset with `php artisan db:seed --class=DemoStaffAccountsSeeder --force`.
+> ⚠ Real passwords on a public server: don't share this file outside the team. Staff accounts are made by the Super Admin (Admin → Accounts, with the EMS employee no.) and disabled nightly when EMS says the employee left ([docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) §1); until EMS is connected these demo accounts are used. Disable one with `php artisan user:active <email> off`. The demo accounts (Admin, Clinic, Deans, one Admission Personnel account per task) are made or reset with `php artisan db:seed --class=DemoStaffAccountsSeeder --force`.
 
 | Role | Portal | Email | Password |
 |---|---|---|---|
 | **Admin** (whole system) | /admin | `abella_gabrielrey@plpasig.edu.ph` | `admin123` |
 | **Admission Personnel** | /admin | `admissions@plpasig.edu.ph` | `ZCm8HQyHxroo3z3d` |
 | **Admission Personnel** | /admin | `r.dizon@plpasig.edu.ph` | `mkduaLO1bvRfN8YJ` |
+| **Admission Personnel**, task: Admission Personnel (documents, approve, slip and permit) | /admin | `personnel@plpasig.edu.ph` | `password123` |
+| **Admission Personnel**, task: Exam Proctor (exam-day roster, attendance, reports about an applicant) | /admin | `proctor@plpasig.edu.ph` | `password123` |
+| **Admission Personnel**, task: Exam Office (scores, placement, results import) | /admin | `examoffice@plpasig.edu.ph` | `password123` |
 | **College Dean**, College of Arts and Sciences (ABPSY, BSMATH) | /admin | `dean.cas@plpasig.edu.ph` | `dean1234` |
 | **College Dean**, College of Business and Accountancy (BSA, BSBA-ENT, BSBA-MM) | /admin | `dean.cba@plpasig.edu.ph` | `dean1234` |
 | **College Dean**, College of Computer Studies (BSIT, BSCS) | /admin | `dean.ccs@plpasig.edu.ph` | `dean1234` |

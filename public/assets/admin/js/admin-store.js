@@ -130,7 +130,10 @@
         return $.when(loadDean(), loadInterviews());
       }
       if (me.role === "clinic") return loadState("/api/clinic");
-      return $.when(loadState(API), me.role === "admission" || me.role === "admission_head" || me.role === "super_admin" ? loadInterviews() : null);
+      return loadState(API).then(function () {
+        // A personnel account with a task has no Interviews screen, and the server refuses it the list
+        return (me.role === "admission" && !STAFF.task) || me.role === "admission_head" || me.role === "super_admin" ? loadInterviews() : null;
+      });
     });
   }
   function loadDean() {
