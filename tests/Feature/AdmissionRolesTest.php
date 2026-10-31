@@ -39,14 +39,15 @@ test('the applicant ID is issued only when admission approves the application', 
 });
 
 // 2.1, 2.6–2.11
-test('each task reaches only its own work, and the Admission Head never takes attendance', function () {
+test('each task reaches only its own work, and the Admission Head can do every task', function () {
     $user = $this->approved();
     $number = $this->number($user);
     [$personnel, $proctor, $office] = [tasked('personnel'), tasked('proctor'), tasked('exam_office')];
 
-    // Attendance: proctor only
-    $this->asUser($this->admissionHead())->patchJson("/api/admin/applicants/{$number}/exam", ['attendance' => 'absent'])->assertForbidden();
-    $this->asUser($this->admissionHead())->postJson('/api/admin/exam/check-in', ['token' => 'x'])->assertForbidden();
+    // Attendance: proctors and the Admission Head
+    $this->asUser($this->admissionHead())->patchJson("/api/admin/applicants/{$number}/exam", ['attendance' => 'absent'])->assertOk();
+    expect($this->asUser($this->admissionHead())->postJson('/api/admin/exam/check-in', ['token' => 'x'])->status())->not->toBe(403);
+    $this->asUser($this->admissionHead())->get("/api/admin/applicants/{$number}/exam-permit")->assertOk();
     $this->asUser($personnel)->patchJson("/api/admin/applicants/{$number}/exam", ['attendance' => 'absent'])->assertForbidden();
     $this->asUser($office)->patchJson("/api/admin/applicants/{$number}/exam", ['attendance' => 'absent'])->assertForbidden();
     $this->asUser($proctor)->patchJson("/api/admin/applicants/{$number}/exam", ['permitChecked' => true, 'formChecked' => true, 'attendance' => 'present'])->assertOk();

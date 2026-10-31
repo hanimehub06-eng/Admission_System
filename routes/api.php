@@ -80,8 +80,8 @@ Route::prefix('admin')->middleware(['auth:api', 'active', 'two_factor'])->group(
     Route::get('applicants/search', [Office\StateController::class, 'search'])->middleware(['role:admission|admission_head|super_admin|read_only', 'throttle:api']);
     Route::get('reference', [Office\SetupController::class, 'reference'])->middleware('role:admission|admission_head|proctor|read_only');
 
-    // Exam attendance (2.8): proctors only, never the Admission Head (2.1)
-    Route::middleware(['role:admission|proctor', 'task:proctor'])->group(function () {
+    // Exam attendance (2.8): proctors, and the Admission Head (and Super Admin), who can do every personnel task
+    Route::middleware(['role:admission|admission_head|super_admin|proctor', 'task:proctor'])->group(function () {
         Route::patch('applicants/{application}/exam', [Office\ExamController::class, 'roster']);
         Route::post('exam/check-in', [Office\ExamController::class, 'checkIn']);
     });

@@ -115,7 +115,7 @@ The OAS's own calls **out**, all Bearer-token, `/api/v1` and JSON, are described
 
 ## Admission roles and tasks (2026-10-31)
 
-An Admission Personnel account can be given a task (`personnel`, `proctor`, `exam_office`) by the Admission Head or the Super Admin. With a task, the server allows only that task's routes (`task` middleware); without one, every admission route works as before. The Admission Head can do everything except take exam attendance.
+An Admission Personnel account can be given a task (`personnel`, `proctor`, `exam_office`) by the Admission Head or the Super Admin. With a task, the server allows only that task's routes (`task` middleware); without one, every admission route works as before. The Admission Head (and the Super Admin) can do every task, exam attendance included.
 
 | Method | Path | Who | Notes |
 |---|---|---|---|
@@ -125,7 +125,7 @@ An Admission Personnel account can be given a task (`personnel`, `proctor`, `exa
 | GET | `/api/admin/accounts` · PATCH `/api/admin/accounts/{user}/task` | admission_head, super_admin | Assign a task. Body: `{ task: "personnel"\|"proctor"\|"exam_office"\|null }` |
 | GET | `/api/admin/applicants/{number}/exam-permit` | personnel task | Exam permit PDF (after approval) |
 | GET | `/api/admin/applicants/{number}/slip` | personnel task | Application slip PDF (after submission) |
-| PATCH | `/api/admin/applicants/{number}/exam` · POST `/api/admin/exam/check-in` | proctor task, proctor role | Attendance; not the Admission Head |
+| PATCH | `/api/admin/applicants/{number}/exam` · POST `/api/admin/exam/check-in` | proctor task, proctor role, Admission Head, Super Admin | Attendance |
 | POST `/api/admin/applicants/{number}/result` · `/placement` · `/api/admin/results/import` | | exam_office task | Score and passed/failed |
 | GET / POST | `/api/admin/applicants/{number}/reports` | GET: office, proctor · POST: proctor task, proctor role | Body: `{ category: incident\|misconduct\|health\|other, body }` |
 | GET / POST | `/api/dean/exam-questions` | college_dean | Own college. Body: `{ question, choices: string[2..6], answer: index }` |
