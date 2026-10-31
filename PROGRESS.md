@@ -31,6 +31,24 @@
 
 **On this computer** (`php artisan app:start`, http://127.0.0.1:8000): the same demo Admin, Clinic and Dean accounts and passwords; `admissions@`, `r.dizon@`, `clinic@` and the sample applicants use `password123`.
 
+### 🎬 Demo applicants: one per step (live server, made 2026-10-31)
+
+For a fast demo of the applicant side: each account is parked at one step of the main path, so you sign in and show that screen without doing the earlier steps. All were walked through the real services (status history, timeline, audit log and in-app notifications are real), choices BSIT → BSCS → BSMATH. Password for all: `admin123`.
+
+| # | Step (status the applicant sees) | Name | Email | Application | What the screen shows · what to do next in the demo |
+|---|---|---|---|---|---|
+| 1 | **Draft** | Dolores Reyes | `dolores.reyes@example.com` | AD-2026-00074 | Form filled, 3 documents still missing, not submitted · upload the rest and submit |
+| 2 | **Submitted** | Teodoro Mendoza | `teodoro.mendoza@example.com` | AD-2026-00075 | Waiting for review · admissions verifies the documents and approves for the exam |
+| 3 | **For exam** | Rosalinda Cruz | `rosalinda.cruz@example.com` | AD-2026-00076 | Exam permit + QR, Batch A, Fri Nov 6, Main Building · Room 302 · scan the QR / mark present, record a score |
+| 4 | **For interview** | Ernesto Villanueva | `ernesto.villanueva@example.com` | AD-2026-00077 | Passed the exam (released); BSIT interview Oct 31, 1:00–5:00 PM, CCS Faculty · 3rd Floor · CCS dean records the evaluation |
+| 5 | **Offered** | Marites Bautista | `marites.bautista@example.com` | AD-2026-00078 | Acceptance letter for BSIT with the accept-by date · accept the slot |
+| 6 | **For medical** | Florencio Navarro | `florencio.navarro@example.com` | AD-2026-00079 | Slot accepted, medical files sent · clinic (/nurse) approves them |
+| 7 | **Admitted** | Lourdes Santiago | `lourdes.santiago@example.com` | AD-2026-00080 | Medically cleared, admission complete |
+
+Main path: Draft → Submitted → For exam → (Passed, released) → For interview → Offered → (Slot accepted) → For medical → Admitted. "Passed" and "Slot accepted" are not separate stops: releasing a pass moves it straight on, and accepting the slot moves straight to For medical. Side branches (Requires resubmission, Did not pass, Interview failed, Forfeited, Rejected) have no demo account.
+
+> ⚠ Applicant sign-in on live emails a code (`APPLICANT_EMAIL_2FA=true`) and `@example.com` can't receive it. Read the code on the server (ask someone with SSH access), or switch these to real inboxes (e.g. Gmail `name+step1@gmail.com`) before a demo.
+
 ### What each role sees in the Admin portal (use-case diagrams, 2026-10-24)
 
 The portal reads the role from the sign-in; the server enforces the same limits on every request.
